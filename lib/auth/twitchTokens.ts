@@ -1,7 +1,10 @@
 import type { NextRequest, NextResponse } from 'next/server';
 import type { ResponseCookie } from 'next/dist/compiled/@edge-runtime/cookies';
 
+// Determine if we should use secure cookies
+// Use secure cookies in production OR when HTTPS is available
 const isProduction = process.env.NODE_ENV === 'production';
+const isSecure = isProduction || process.env.NEXT_PUBLIC_BASE_URL?.startsWith('https://');
 
 export const TOKEN_COOKIE_NAME = 'twitch_tokens';
 export const USER_COOKIE_NAME = 'twitch_user';
@@ -45,8 +48,8 @@ export function createTokenCookie(tokens: TwitchTokenCookie): CookieDescriptor {
     value: JSON.stringify(tokens),
     options: {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'strict',
+      secure: isSecure,
+      sameSite: 'lax',
       maxAge: maxAgeSeconds,
       path: '/',
     },
@@ -58,8 +61,8 @@ export function createUserCookie(payload: AuthCookiePayload, maxAgeSeconds: numb
     name: USER_COOKIE_NAME,
     value: JSON.stringify(payload),
     options: {
-      secure: isProduction,
-      sameSite: 'strict',
+      secure: isSecure,
+      sameSite: 'lax',
       maxAge: Math.max(60, maxAgeSeconds),
       path: '/',
     },
@@ -72,7 +75,7 @@ export function createSessionCookie(userId: string): CookieDescriptor {
     value: userId,
     options: {
       httpOnly: true,
-      secure: isProduction,
+      secure: isSecure,
       sameSite: 'lax',
       maxAge: ONE_YEAR_SECONDS,
       path: '/',
@@ -86,8 +89,8 @@ export function clearTokenCookie(): CookieDescriptor {
     value: '',
     options: {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'strict',
+      secure: isSecure,
+      sameSite: 'lax',
       maxAge: 0,
       path: '/',
     },
@@ -99,8 +102,8 @@ export function clearUserCookie(): CookieDescriptor {
     name: USER_COOKIE_NAME,
     value: '',
     options: {
-      secure: isProduction,
-      sameSite: 'strict',
+      secure: isSecure,
+      sameSite: 'lax',
       maxAge: 0,
       path: '/',
     },
@@ -113,7 +116,7 @@ export function clearSessionCookie(): CookieDescriptor {
     value: '',
     options: {
       httpOnly: true,
-      secure: isProduction,
+      secure: isSecure,
       sameSite: 'lax',
       maxAge: 0,
       path: '/',
