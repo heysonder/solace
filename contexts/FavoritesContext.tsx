@@ -4,10 +4,10 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 
 interface FavoritesContextType {
   favorites: Set<string>;
-  addFavorite: (channelLogin: string) => Promise<void>;
-  removeFavorite: (channelLogin: string) => Promise<void>;
+  addFavorite: (channelLogin: string) => void;
+  removeFavorite: (channelLogin: string) => void;
   isFavorite: (channelLogin: string) => boolean;
-  toggleFavorite: (channelLogin: string) => Promise<void>;
+  toggleFavorite: (channelLogin: string) => void;
   isLoading: boolean;
 }
 
@@ -15,7 +15,7 @@ const FavoritesContext = createContext<FavoritesContextType | undefined>(undefin
 
 const FAVORITES_STORAGE_KEY = 'twitch-favorites';
 
-// Helper to get localStorage favorites (for migration/fallback)
+// Helper to get localStorage favorites
 const getFavoritesFromStorage = (): Set<string> => {
   if (typeof window === 'undefined') return new Set();
   try {
@@ -26,26 +26,13 @@ const getFavoritesFromStorage = (): Set<string> => {
   }
 };
 
-// Helper to migrate localStorage favorites to database
-const migrateFavoritesToDatabase = async (localFavorites: Set<string>) => {
-  if (localFavorites.size === 0) return;
-
+// Helper to save favorites to localStorage
+const saveFavoritesToStorage = (favorites: Set<string>): void => {
+  if (typeof window === 'undefined') return;
   try {
-    // Add all local favorites to database
-    await Promise.all(
-      Array.from(localFavorites).map(channelLogin =>
-        fetch('/api/favorites', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ channelLogin }),
-        })
-      )
-    );
-
-    // Clear localStorage after successful migration
-    localStorage.removeItem(FAVORITES_STORAGE_KEY);
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...favorites]));
   } catch (error) {
-    console.error('Failed to migrate favorites:', error);
+    console.error('Failed to save favorites to localStorage:', error);
   }
 };
 
@@ -57,124 +44,41 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize favorites from database
+  // Initialize favorites from localStorage
   useEffect(() => {
-    const loadFavorites = async () => {
-      try {
-        // First, check for localStorage favorites to migrate
-        const localFavorites = getFavoritesFromStorage();
-        if (localFavorites.size > 0) {
-          await migrateFavoritesToDatabase(localFavorites);
-        }
-
-        // Fetch from database
-        const response = await fetch('/api/favorites');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch favorites: ${response.status}`);
-        }
-        const data = await response.json();
-        setFavorites(new Set(data.favorites || []));
-      } catch (error) {
-        console.error('Failed to load favorites:', error);
-        // Fallback to localStorage if API fails
-        setFavorites(getFavoritesFromStorage());
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadFavorites();
+    setFavorites(getFavoritesFromStorage());
+    setIsLoading(false);
   }, []);
 
-  const addFavorite = async (channelLogin: string) => {
+  const addFavorite = (channelLogin: string) => {
     const normalizedLogin = channelLogin.toLowerCase();
-
-    // Optimistic update
     setFavorites(prev => {
       const newFavorites = new Set(prev);
       newFavorites.add(normalizedLogin);
+      saveFavoritesToStorage(newFavorites);
       return newFavorites;
     });
-
-    try {
-      const response = await fetch('/api/favorites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channelLogin: normalizedLogin }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add favorite');
-      }
-    } catch (error) {
-      console.error('Error adding favorite:', error);
-      // Fallback to localStorage when API fails
-      try {
-        const currentFavorites = getFavoritesFromStorage();
-        currentFavorites.add(normalizedLogin);
-        localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...currentFavorites]));
-        console.log('Favorite saved to localStorage as fallback');
-      } catch (storageError) {
-        console.error('Failed to save to localStorage:', storageError);
-        // Only revert if both API and localStorage fail
-        setFavorites(prev => {
-          const newFavorites = new Set(prev);
-          newFavorites.delete(normalizedLogin);
-          return newFavorites;
-        });
-      }
-    }
   };
 
-  const removeFavorite = async (channelLogin: string) => {
+  const removeFavorite = (channelLogin: string) => {
     const normalizedLogin = channelLogin.toLowerCase();
-
-    // Optimistic update
     setFavorites(prev => {
       const newFavorites = new Set(prev);
       newFavorites.delete(normalizedLogin);
+      saveFavoritesToStorage(newFavorites);
       return newFavorites;
     });
-
-    try {
-      const response = await fetch('/api/favorites', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channelLogin: normalizedLogin }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to remove favorite');
-      }
-    } catch (error) {
-      console.error('Error removing favorite:', error);
-      // Fallback to localStorage when API fails
-      try {
-        const currentFavorites = getFavoritesFromStorage();
-        currentFavorites.delete(normalizedLogin);
-        localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...currentFavorites]));
-        console.log('Favorite removed from localStorage as fallback');
-      } catch (storageError) {
-        console.error('Failed to save to localStorage:', storageError);
-        // Only revert if both API and localStorage fail
-        setFavorites(prev => {
-          const newFavorites = new Set(prev);
-          newFavorites.add(normalizedLogin);
-          return newFavorites;
-        });
-      }
-    }
   };
 
   const isFavorite = (channelLogin: string): boolean => {
     return favorites.has(channelLogin.toLowerCase());
   };
 
-  const toggleFavorite = async (channelLogin: string) => {
+  const toggleFavorite = (channelLogin: string) => {
     if (isFavorite(channelLogin)) {
-      await removeFavorite(channelLogin);
+      removeFavorite(channelLogin);
     } else {
-      await addFavorite(channelLogin);
+      addFavorite(channelLogin);
     }
   };
 
