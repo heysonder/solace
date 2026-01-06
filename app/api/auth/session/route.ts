@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
 import {
   applyCookieDescriptors,
   createUserCookie,
@@ -15,22 +14,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { twitchId: tokens.user_id },
+    // Fetch user info from Twitch API
+    const clientId = process.env.TWITCH_CLIENT_ID;
+    if (!clientId) {
+      return NextResponse.json({ error: 'Configuration error' }, { status: 500 });
+    }
+
+    const userResponse = await fetch('https://api.twitch.tv/helix/users', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`,
+        'Client-Id': clientId,
+      },
     });
 
-    if (!user) {
-      const response = NextResponse.json({ error: 'User not found' }, { status: 401 });
-      applyCookieDescriptors(response, cookies);
-      return response;
+    if (!userResponse.ok) {
+      return NextResponse.json({ error: 'Failed to fetch user info' }, { status: 500 });
     }
+
+    const userData = await userResponse.json();
+    const user = userData.data[0];
 
     const sessionPayload = {
       user: {
-        id: user.twitchId ?? user.id,
-        login: user.username ?? user.displayName ?? tokens.user_id,
-        display_name: user.displayName ?? user.username ?? user.twitchId ?? tokens.user_id,
-        profile_image_url: user.avatarUrl,
+        id: user.id,
+        login: user.login,
+        display_name: user.display_name,
+        profile_image_url: user.profile_image_url,
       },
       expires_at: tokens.expires_at,
     };

@@ -41,23 +41,27 @@ export default function Home() {
     setError(null);
 
     try {
-      const url = new URL("/api/streams", window.location.origin);
-      url.searchParams.set("first", PAGE_SIZE.toString());
-      if (cursor) url.searchParams.set("after", cursor);
-      
-      const response = await fetch(url.toString());
-      
+      // Build URL params safely
+      const params = new URLSearchParams();
+      params.set("first", PAGE_SIZE.toString());
+      if (cursor) {
+        params.set("after", cursor);
+      }
+
+      const url = `/api/streams?${params.toString()}`;
+      const response = await fetch(url);
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error);
       }
-      
+
       setItems((prev) => [...prev, ...(data.data || [])]);
       setCursor(data.pagination?.cursor ?? null);
     } catch (err) {

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
 import {
   applyCookieDescriptors,
   createSessionCookie,
@@ -72,71 +71,6 @@ export async function GET(request: NextRequest) {
     const userData = await userResponse.json();
     const user = userData.data[0];
 
-    // Persist Twitch profile in database
-    const dbUser = await prisma.user.upsert({
-      where: { twitchId: user.id },
-      update: {
-        username: user.login,
-        displayName: user.display_name,
-        email: user.email,
-        avatarUrl: user.profile_image_url,
-      },
-      create: {
-        twitchId: user.id,
-        username: user.login,
-        displayName: user.display_name,
-        email: user.email,
-        avatarUrl: user.profile_image_url,
-      },
-    });
-
-    // Merge any anonymous data that might exist for the current session
-    const previousSessionId = request.cookies.get('session_id')?.value;
-    if (previousSessionId && previousSessionId !== user.id) {
-      const anonymousUser = await prisma.user.findUnique({
-        where: { twitchId: previousSessionId },
-      });
-
-      if (anonymousUser && anonymousUser.id !== dbUser.id) {
-        await prisma.$transaction(async (tx) => {
-          await tx.favorite.updateMany({
-            where: { userId: anonymousUser.id },
-            data: { userId: dbUser.id },
-          });
-
-          await tx.follow.updateMany({
-            where: { userId: anonymousUser.id },
-            data: { userId: dbUser.id },
-          });
-
-          const anonPreferences = await tx.userPreference.findUnique({
-            where: { userId: anonymousUser.id },
-          });
-
-          if (anonPreferences) {
-            const existingPreferences = await tx.userPreference.findUnique({
-              where: { userId: dbUser.id },
-            });
-
-            if (existingPreferences) {
-              await tx.userPreference.delete({
-                where: { id: anonPreferences.id },
-              });
-            } else {
-              await tx.userPreference.update({
-                where: { id: anonPreferences.id },
-                data: { userId: dbUser.id },
-              });
-            }
-          }
-
-          await tx.user.delete({
-            where: { id: anonymousUser.id },
-          });
-        });
-      }
-    }
-
     // SECURITY: Store auth data in HTTP-only cookie instead of URL hash
     const expiresAt = Date.now() + tokenData.expires_in * 1000;
     const authData: AuthCookiePayload = {
@@ -145,7 +79,6 @@ export async function GET(request: NextRequest) {
         login: user.login,
         display_name: user.display_name,
         profile_image_url: user.profile_image_url,
-        // SECURITY: Don't expose email in client-side data
       },
       expires_at: expiresAt,
     };
@@ -163,17 +96,17 @@ export async function GET(request: NextRequest) {
 
     const redirectUrl = new URL('/', siteUrl);
     redirectUrl.searchParams.set('auth', 'success');
-    
+
     const response = NextResponse.redirect(redirectUrl);
-    
+
     applyCookieDescriptors(response, [
       createTokenCookie(tokenCookieData),
       createUserCookie(authData, tokenData.expires_in),
       createSessionCookie(user.id),
     ]);
-    
+
     return response;
-    
+
   } catch (error) {
     // SECURITY: Log error without exposing sensitive details
     console.error('OAuth callback error occurred');
