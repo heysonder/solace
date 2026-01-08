@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { helix, __resetTokenCache } from '@/lib/twitch/api';
 
+// Helper to create a properly typed fetch mock
+function createFetchMock(handler: (url: string, options?: RequestInit) => Promise<Partial<Response>>) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url = typeof input === 'string' ? input : input.toString();
+    return handler(url, init) as Promise<Response>;
+  });
+}
+
 describe('twitch api utilities', () => {
   const originalFetch = global.fetch;
   const originalEnv = process.env;
@@ -26,24 +34,17 @@ describe('twitch api utilities', () => {
     it('should construct proper Helix API URLs with query params', async () => {
       let helixUrl = '';
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('oauth2/token')) {
-          return Promise.resolve({
+          return {
             ok: true,
-            json: () =>
-              Promise.resolve({
-                access_token: 'test_token',
-                expires_in: 3600,
-              }),
-          } as Response);
+            json: () => Promise.resolve({ access_token: 'test_token', expires_in: 3600 }),
+          };
         } else if (url.includes('helix/streams')) {
           helixUrl = url;
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ data: [] }),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve({ data: [] }) };
         }
-        return Promise.reject(new Error('Unexpected URL'));
+        throw new Error('Unexpected URL');
       });
 
       await helix('streams', { user_login: 'testuser', first: 10 });
@@ -56,24 +57,17 @@ describe('twitch api utilities', () => {
     it('should skip undefined params in query string', async () => {
       let helixUrl = '';
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('oauth2/token')) {
-          return Promise.resolve({
+          return {
             ok: true,
-            json: () =>
-              Promise.resolve({
-                access_token: 'token',
-                expires_in: 3600,
-              }),
-          } as Response);
+            json: () => Promise.resolve({ access_token: 'token', expires_in: 3600 }),
+          };
         } else if (url.includes('helix/users')) {
           helixUrl = url;
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ data: [] }),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve({ data: [] }) };
         }
-        return Promise.reject(new Error('Unexpected URL'));
+        throw new Error('Unexpected URL');
       });
 
       await helix('users', { login: 'testuser', undefined_param: undefined });
@@ -83,54 +77,43 @@ describe('twitch api utilities', () => {
     });
 
     it('should include proper authorization headers', async () => {
-      let headers: any = null;
+      let headers: Record<string, string> | undefined;
 
-      global.fetch = vi.fn((url: string, options?: any) => {
+      global.fetch = createFetchMock(async (url, options) => {
         if (url.includes('oauth2/token')) {
-          return Promise.resolve({
+          return {
             ok: true,
-            json: () =>
-              Promise.resolve({
-                access_token: 'test_token_123',
-                expires_in: 3600,
-              }),
-          } as Response);
+            json: () => Promise.resolve({ access_token: 'test_token_123', expires_in: 3600 }),
+          };
         } else if (url.includes('helix')) {
-          headers = options?.headers;
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ data: [] }),
-          } as Response);
+          headers = options?.headers as Record<string, string>;
+          return { ok: true, json: () => Promise.resolve({ data: [] }) };
         }
-        return Promise.reject(new Error('Unexpected URL'));
+        throw new Error('Unexpected URL');
       });
 
       await helix('users', { login: 'testuser' });
 
       expect(headers).toBeDefined();
-      expect(headers['Client-ID']).toBe('test_client_id');
-      expect(headers['Authorization']).toContain('Bearer');
+      expect(headers?.['Client-ID']).toBe('test_client_id');
+      expect(headers?.['Authorization']).toContain('Bearer');
     });
 
     it('should throw error when Helix API returns non-ok status', async () => {
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('oauth2/token')) {
-          return Promise.resolve({
+          return {
             ok: true,
-            json: () =>
-              Promise.resolve({
-                access_token: 'token',
-                expires_in: 3600,
-              }),
-          } as Response);
+            json: () => Promise.resolve({ access_token: 'token', expires_in: 3600 }),
+          };
         } else if (url.includes('helix')) {
-          return Promise.resolve({
+          return {
             ok: false,
             status: 500,
             text: () => Promise.resolve('Internal Server Error'),
-          } as Response);
+          };
         }
-        return Promise.reject(new Error('Unexpected URL'));
+        throw new Error('Unexpected URL');
       });
 
       await expect(helix('users', { login: 'testuser' })).rejects.toThrow('Helix users failed');
@@ -155,24 +138,17 @@ describe('twitch api utilities', () => {
     it('should handle different query parameter types', async () => {
       let helixUrl = '';
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('oauth2/token')) {
-          return Promise.resolve({
+          return {
             ok: true,
-            json: () =>
-              Promise.resolve({
-                access_token: 'token',
-                expires_in: 3600,
-              }),
-          } as Response);
+            json: () => Promise.resolve({ access_token: 'token', expires_in: 3600 }),
+          };
         } else if (url.includes('helix')) {
           helixUrl = url;
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ data: [] }),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve({ data: [] }) };
         }
-        return Promise.reject(new Error('Unexpected URL'));
+        throw new Error('Unexpected URL');
       });
 
       await helix('streams', {
@@ -193,23 +169,16 @@ describe('twitch api utilities', () => {
         ]
       };
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('oauth2/token')) {
-          return Promise.resolve({
+          return {
             ok: true,
-            json: () =>
-              Promise.resolve({
-                access_token: 'token',
-                expires_in: 3600,
-              }),
-          } as Response);
+            json: () => Promise.resolve({ access_token: 'token', expires_in: 3600 }),
+          };
         } else if (url.includes('helix')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(mockData),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve(mockData) };
         }
-        return Promise.reject(new Error('Unexpected URL'));
+        throw new Error('Unexpected URL');
       });
 
       const result = await helix('users', { login: 'testuser' });
@@ -222,24 +191,17 @@ describe('twitch api utilities', () => {
     it('should fetch token when making API call', async () => {
       let tokenRequested = false;
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('oauth2/token')) {
           tokenRequested = true;
-          return Promise.resolve({
+          return {
             ok: true,
-            json: () =>
-              Promise.resolve({
-                access_token: 'fresh_token',
-                expires_in: 3600,
-              }),
-          } as Response);
+            json: () => Promise.resolve({ access_token: 'fresh_token', expires_in: 3600 }),
+          };
         } else if (url.includes('helix')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ data: [] }),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve({ data: [] }) };
         }
-        return Promise.reject(new Error('Unexpected URL'));
+        throw new Error('Unexpected URL');
       });
 
       await helix('users', { login: 'testuser' });
@@ -248,15 +210,15 @@ describe('twitch api utilities', () => {
     });
 
     it('should throw error when token fetch fails', async () => {
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('oauth2/token')) {
-          return Promise.resolve({
+          return {
             ok: false,
             status: 401,
             text: () => Promise.resolve('Unauthorized'),
-          } as Response);
+          };
         }
-        return Promise.reject(new Error('Unexpected URL'));
+        throw new Error('Unexpected URL');
       });
 
       await expect(helix('users', { login: 'testuser' })).rejects.toThrow('Token fetch failed');
@@ -265,24 +227,17 @@ describe('twitch api utilities', () => {
     it('should cache token and reuse for subsequent calls', async () => {
       let tokenFetchCount = 0;
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('oauth2/token')) {
           tokenFetchCount++;
-          return Promise.resolve({
+          return {
             ok: true,
-            json: () =>
-              Promise.resolve({
-                access_token: 'cached_token',
-                expires_in: 3600,
-              }),
-          } as Response);
+            json: () => Promise.resolve({ access_token: 'cached_token', expires_in: 3600 }),
+          };
         } else if (url.includes('helix')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ data: [] }),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve({ data: [] }) };
         }
-        return Promise.reject(new Error('Unexpected URL'));
+        throw new Error('Unexpected URL');
       });
 
       // First call

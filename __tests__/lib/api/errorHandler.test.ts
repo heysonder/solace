@@ -1,13 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { withErrorHandling, validateEnvVars, validateRequestBody } from '@/lib/api/errorHandler';
 
-// Mock NextResponse
+// Helper type for our mock response
+interface MockNextResponse<T = unknown> {
+  status: number;
+  headers: Headers;
+  json: () => Promise<T>;
+}
+
+// Mock NextResponse to return an object that mimics the real Response API
 vi.mock('next/server', () => ({
   NextResponse: {
-    json: vi.fn((data: any, init?: any) => ({
-      data,
+    json: vi.fn(<T>(data: T, init?: { status?: number }): MockNextResponse<T> => ({
       status: init?.status || 200,
       headers: new Headers(),
+      json: async () => data,
     })),
   },
 }));
@@ -194,9 +201,10 @@ describe('errorHandler utilities', () => {
       const mockHandler = vi.fn(async () => ({ success: true, data: 'test' }));
 
       const response = await withErrorHandling(mockHandler, 'Test error');
+      const data = await response.json();
 
       expect(mockHandler).toHaveBeenCalledTimes(1);
-      expect(response.data).toEqual({ success: true, data: 'test' });
+      expect(data).toEqual({ success: true, data: 'test' });
       expect(response.status).toBe(200);
     });
 
@@ -206,8 +214,9 @@ describe('errorHandler utilities', () => {
       });
 
       const response = await withErrorHandling(mockHandler, 'Operation failed');
+      const data = await response.json();
 
-      expect(response.data).toEqual({
+      expect(data).toEqual({
         error: 'Operation failed',
         details: 'Test error message',
       });
@@ -220,8 +229,9 @@ describe('errorHandler utilities', () => {
       });
 
       const response = await withErrorHandling(mockHandler, 'Operation failed');
+      const data = await response.json();
 
-      expect(response.data).toEqual({
+      expect(data).toEqual({
         error: 'Operation failed',
         details: 'Unknown error',
       });
@@ -234,8 +244,9 @@ describe('errorHandler utilities', () => {
       });
 
       const response = await withErrorHandling(mockHandler, 'Resource not found');
+      const data = await response.json();
 
-      expect(response.data).toEqual({
+      expect(data).toEqual({
         error: 'Resource not found',
         details: 'Not found',
       });
@@ -248,8 +259,9 @@ describe('errorHandler utilities', () => {
       });
 
       const response = await withErrorHandling(mockHandler, 'Validation failed');
+      const data = await response.json();
 
-      expect(response.data).toEqual({
+      expect(data).toEqual({
         error: 'Validation failed',
         details: 'Invalid input',
       });
@@ -274,8 +286,9 @@ describe('errorHandler utilities', () => {
       });
 
       const response = await withErrorHandling(mockHandler, 'Failed to process');
+      const data = await response.json();
 
-      expect(response.data.details).toBe('Detailed error with stack trace');
+      expect(data.details).toBe('Detailed error with stack trace');
     });
 
     it('should handle async operations correctly', async () => {
@@ -285,8 +298,9 @@ describe('errorHandler utilities', () => {
       });
 
       const response = await withErrorHandling(mockHandler, 'Async operation failed');
+      const data = await response.json();
 
-      expect(response.data).toEqual({ asyncResult: true });
+      expect(data).toEqual({ asyncResult: true });
       expect(response.status).toBe(200);
     });
   });
@@ -301,9 +315,10 @@ describe('errorHandler utilities', () => {
       });
 
       const response = await withErrorHandling(mockHandler, 'Configuration error');
+      const data = await response.json();
 
-      expect(response.data.error).toBe('Configuration error');
-      expect(response.data.details).toContain('REQUIRED_VAR');
+      expect(data.error).toBe('Configuration error');
+      expect(data.details).toContain('REQUIRED_VAR');
       expect(response.status).toBe(500);
     });
 
@@ -314,9 +329,10 @@ describe('errorHandler utilities', () => {
       });
 
       const response = await withErrorHandling(mockHandler, 'Invalid request');
+      const data = await response.json();
 
-      expect(response.data.error).toBe('Invalid request');
-      expect(response.data.details).toContain('field2');
+      expect(data.error).toBe('Invalid request');
+      expect(data.details).toContain('field2');
       expect(response.status).toBe(400);
     });
   });

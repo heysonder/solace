@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { fetchEmotes, fetchAllEmotes } from '@/lib/twitch/emoteFetcher';
 
 // Helper to create more complete Response mocks
-function createMockResponse(data: any, options: Partial<Response> = {}): Response {
+function createMockResponse<T>(data: T, options: Partial<Response> = {}): Response {
   return {
     ok: options.ok ?? true,
     status: options.status ?? 200,
     statusText: options.statusText ?? 'OK',
-    headers: new Headers(options.headers),
+    headers: new Headers(options.headers as HeadersInit),
     redirected: false,
     type: 'basic',
     url: '',
@@ -20,6 +20,14 @@ function createMockResponse(data: any, options: Partial<Response> = {}): Respons
     formData: () => Promise.resolve(new FormData()),
     clone: function() { return this; },
   } as Response;
+}
+
+// Helper to create a properly typed fetch mock
+function createFetchMock(handler: (url: string, options?: RequestInit) => Promise<Partial<Response>>) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url = typeof input === 'string' ? input : input.toString();
+    return handler(url, init) as Promise<Response>;
+  });
 }
 
 describe('emoteFetcher utilities', () => {
@@ -42,11 +50,11 @@ describe('emoteFetcher utilities', () => {
         { id: 'emote2', code: 'PogChamp' },
       ];
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('global')) {
-          return Promise.resolve(createMockResponse(mockGlobalEmotes));
+          return createMockResponse(mockGlobalEmotes);
         }
-        return Promise.resolve(createMockResponse(null, { ok: false, status: 404 }));
+        return createMockResponse(null, { ok: false, status: 404 });
       });
 
       const emotes = await fetchEmotes('bttv', 'testchannel', '123456');
@@ -58,25 +66,19 @@ describe('emoteFetcher utilities', () => {
     });
 
     it('should fetch and parse channel BTTV emotes', async () => {
-      const mockGlobalEmotes = [];
+      const mockGlobalEmotes: Array<{ id: string; code: string }> = [];
       const mockChannelEmotes = {
         channelEmotes: [{ id: 'channel1', code: 'ChannelEmote' }],
         sharedEmotes: [{ id: 'shared1', code: 'SharedEmote' }],
       };
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('global')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(mockGlobalEmotes),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve(mockGlobalEmotes) };
         } else if (url.includes('twitch/123456')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(mockChannelEmotes),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve(mockChannelEmotes) };
         }
-        return Promise.resolve({ ok: false } as Response);
+        return { ok: false };
       });
 
       const emotes = await fetchEmotes('bttv', 'testchannel', '123456');
@@ -86,15 +88,15 @@ describe('emoteFetcher utilities', () => {
     });
 
     it('should handle BTTV channel emotes failure gracefully', async () => {
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('global')) {
-          return Promise.resolve({
+          return {
             ok: true,
             json: () => Promise.resolve([{ id: 'emote1', code: 'GlobalEmote' }]),
-          } as Response);
+          };
         }
         // Channel fetch fails
-        return Promise.resolve({ ok: false, status: 404 } as Response);
+        return { ok: false, status: 404 };
       });
 
       const emotes = await fetchEmotes('bttv', 'testchannel', '123456');
@@ -117,12 +119,10 @@ describe('emoteFetcher utilities', () => {
         },
       };
 
-      global.fetch = vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockFFZData),
-        } as Response)
-      );
+      global.fetch = createFetchMock(async () => ({
+        ok: true,
+        json: () => Promise.resolve(mockFFZData),
+      }));
 
       const emotes = await fetchEmotes('ffz', 'testchannel');
 
@@ -141,19 +141,13 @@ describe('emoteFetcher utilities', () => {
         },
       };
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('global')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(mockGlobalData),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve(mockGlobalData) };
         } else if (url.includes('room/testchannel')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(mockChannelData),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve(mockChannelData) };
         }
-        return Promise.resolve({ ok: false } as Response);
+        return { ok: false };
       });
 
       const emotes = await fetchEmotes('ffz', 'testchannel');
@@ -171,12 +165,10 @@ describe('emoteFetcher utilities', () => {
         ],
       };
 
-      global.fetch = vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mock7TVData),
-        } as Response)
-      );
+      global.fetch = createFetchMock(async () => ({
+        ok: true,
+        json: () => Promise.resolve(mock7TVData),
+      }));
 
       const emotes = await fetchEmotes('7tv', 'testchannel', '123456');
 
@@ -193,19 +185,13 @@ describe('emoteFetcher utilities', () => {
         },
       };
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('global')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(mockGlobalData),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve(mockGlobalData) };
         } else if (url.includes('twitch/123456')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(mockChannelData),
-          } as Response);
+          return { ok: true, json: () => Promise.resolve(mockChannelData) };
         }
-        return Promise.resolve({ ok: false } as Response);
+        return { ok: false };
       });
 
       const emotes = await fetchEmotes('7tv', 'testchannel', '123456');
@@ -218,17 +204,14 @@ describe('emoteFetcher utilities', () => {
     it('should handle AbortController signal correctly', async () => {
       let abortSignalReceived = false;
 
-      global.fetch = vi.fn((url: string, options?: any) => {
+      global.fetch = createFetchMock(async (_url, options) => {
         // Check if signal was provided
         if (options?.signal) {
           abortSignalReceived = true;
         }
 
         // Return immediately
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve([]),
-        } as Response);
+        return { ok: true, json: () => Promise.resolve([]) };
       });
 
       // Start fetch
@@ -239,8 +222,8 @@ describe('emoteFetcher utilities', () => {
     });
 
     it('should return empty object on network timeout/abort', async () => {
-      global.fetch = vi.fn(() => {
-        return Promise.reject(new Error('Network timeout'));
+      global.fetch = createFetchMock(async () => {
+        throw new Error('Network timeout');
       });
 
       const emotes = await fetchEmotes('bttv', 'testchannel');
@@ -252,12 +235,7 @@ describe('emoteFetcher utilities', () => {
 
   describe('error handling', () => {
     it('should return empty object when global fetch fails', async () => {
-      global.fetch = vi.fn(() =>
-        Promise.resolve({
-          ok: false,
-          status: 500,
-        } as Response)
-      );
+      global.fetch = createFetchMock(async () => ({ ok: false, status: 500 }));
 
       const emotes = await fetchEmotes('bttv', 'testchannel');
 
@@ -265,7 +243,9 @@ describe('emoteFetcher utilities', () => {
     });
 
     it('should return empty object when fetch throws error', async () => {
-      global.fetch = vi.fn(() => Promise.reject(new Error('Network error')));
+      global.fetch = createFetchMock(async () => {
+        throw new Error('Network error');
+      });
 
       const emotes = await fetchEmotes('bttv', 'testchannel');
 
@@ -273,12 +253,10 @@ describe('emoteFetcher utilities', () => {
     });
 
     it('should return empty object when JSON parsing fails', async () => {
-      global.fetch = vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.reject(new Error('Invalid JSON')),
-        } as Response)
-      );
+      global.fetch = createFetchMock(async () => ({
+        ok: true,
+        json: () => Promise.reject(new Error('Invalid JSON')),
+      }));
 
       const emotes = await fetchEmotes('bttv', 'testchannel');
 
@@ -286,15 +264,15 @@ describe('emoteFetcher utilities', () => {
     });
 
     it('should continue with global emotes when channel emotes fail', async () => {
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('global')) {
-          return Promise.resolve({
+          return {
             ok: true,
             json: () => Promise.resolve([{ id: '1', code: 'Global' }]),
-          } as Response);
+          };
         }
         // Channel fetch throws
-        return Promise.reject(new Error('Channel not found'));
+        throw new Error('Channel not found');
       });
 
       const emotes = await fetchEmotes('bttv', 'testchannel', '123456');
@@ -308,7 +286,7 @@ describe('emoteFetcher utilities', () => {
       const fetchTimes: number[] = [];
       const startTime = Date.now();
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         // Record fetch start time relative to test start
         fetchTimes.push(Date.now() - startTime);
 
@@ -318,10 +296,7 @@ describe('emoteFetcher utilities', () => {
           ? { sets: {} }
           : { emotes: [] };
 
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockData),
-        } as Response);
+        return { ok: true, json: () => Promise.resolve(mockData) };
       });
 
       const result = await fetchAllEmotes('testchannel', '123456');
@@ -357,12 +332,10 @@ describe('emoteFetcher utilities', () => {
     });
 
     it('should respect enabled providers settings', async () => {
-      global.fetch = vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve([]),
-        } as Response)
-      );
+      global.fetch = createFetchMock(async () => ({
+        ok: true,
+        json: () => Promise.resolve([]),
+      }));
 
       const result = await fetchAllEmotes('testchannel', '123456', {
         bttv: true,
@@ -386,20 +359,20 @@ describe('emoteFetcher utilities', () => {
     });
 
     it('should handle partial failures gracefully', async () => {
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('betterttv')) {
-          return Promise.resolve({
+          return {
             ok: true,
             json: () => Promise.resolve([{ id: '1', code: 'BTTVEmote' }]),
-          } as Response);
+          };
         } else if (url.includes('frankerfacez')) {
           // FFZ fails
-          return Promise.reject(new Error('FFZ error'));
+          throw new Error('FFZ error');
         } else {
-          return Promise.resolve({
+          return {
             ok: true,
             json: () => Promise.resolve({ emotes: [{ id: '2', name: '7TVEmote' }] }),
-          } as Response);
+          };
         }
       });
 
@@ -412,7 +385,9 @@ describe('emoteFetcher utilities', () => {
     });
 
     it('should handle all providers failing', async () => {
-      global.fetch = vi.fn(() => Promise.reject(new Error('Network error')));
+      global.fetch = createFetchMock(async () => {
+        throw new Error('Network error');
+      });
 
       const result = await fetchAllEmotes('testchannel', '123456');
 
@@ -424,12 +399,10 @@ describe('emoteFetcher utilities', () => {
 
   describe('emote parsing edge cases', () => {
     it('should handle missing emotes array in 7TV response', async () => {
-      global.fetch = vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({}), // No emotes field
-        } as Response)
-      );
+      global.fetch = createFetchMock(async () => ({
+        ok: true,
+        json: () => Promise.resolve({}), // No emotes field
+      }));
 
       const emotes = await fetchEmotes('7tv', 'testchannel');
 
@@ -437,12 +410,10 @@ describe('emoteFetcher utilities', () => {
     });
 
     it('should handle missing sets in FFZ response', async () => {
-      global.fetch = vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({}), // No sets field
-        } as Response)
-      );
+      global.fetch = createFetchMock(async () => ({
+        ok: true,
+        json: () => Promise.resolve({}), // No sets field
+      }));
 
       const emotes = await fetchEmotes('ffz', 'testchannel');
 
@@ -450,12 +421,12 @@ describe('emoteFetcher utilities', () => {
     });
 
     it('should skip channel emotes when roomId is not provided', async () => {
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = createFetchMock(async (url) => {
         if (url.includes('global')) {
-          return Promise.resolve({
+          return {
             ok: true,
             json: () => Promise.resolve([{ id: '1', code: 'GlobalEmote' }]),
-          } as Response);
+          };
         }
         // Should not be called
         throw new Error('Should not fetch channel emotes without roomId');

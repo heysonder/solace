@@ -2,6 +2,50 @@ import { NextRequest, NextResponse } from 'next/server';
 import { rewriteM3U8 } from '@/lib/video/m3u8';
 import { PROXY_ALLOWED_HOSTS } from '@/lib/twitch/proxyConfig';
 
+// SECURITY: Only allow same-origin requests or configured origins
+function getAllowedOrigin(request: NextRequest): string | null {
+  const origin = request.headers.get('origin');
+  const host = request.headers.get('host');
+
+  // Same-origin requests (no origin header or matches host)
+  if (!origin) return null;
+
+  // Check if origin matches the host (same site)
+  try {
+    const originUrl = new URL(origin);
+    if (originUrl.host === host) {
+      return origin;
+    }
+  } catch {
+    // Invalid origin
+  }
+
+  // Check configured allowed origins
+  const allowedOrigins = process.env.ALLOWED_CORS_ORIGINS?.split(',').map(o => o.trim()) || [];
+  if (allowedOrigins.includes(origin)) {
+    return origin;
+  }
+
+  // In development, allow localhost
+  if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
+    return origin;
+  }
+
+  return null;
+}
+
+function getCorsHeaders(request: NextRequest): Record<string, string> {
+  const allowedOrigin = getAllowedOrigin(request);
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'GET, HEAD',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+  if (allowedOrigin) {
+    headers['Access-Control-Allow-Origin'] = allowedOrigin;
+  }
+  return headers;
+}
+
 // Security: Host Allowlist - includes proxy endpoints and Twitch domains
 const ALLOWED_HOSTS = [
   ...PROXY_ALLOWED_HOSTS,  // Ad-free proxy services
@@ -32,7 +76,9 @@ function validateRequest(request: NextRequest) {
   );
 
   if (!isAllowed) {
-    console.error(`Blocked proxy request to unauthorized host: ${urlObj.hostname}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`Blocked proxy request to unauthorized host: ${urlObj.hostname}`);
+    }
     return { error: new NextResponse('Host not allowed', { status: 403 }) };
   }
 
@@ -82,13 +128,13 @@ export async function HEAD(request: NextRequest) {
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, HEAD',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        ...getCorsHeaders(request),
       },
     });
   } catch (error) {
-    console.error('HLS HEAD request error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('HLS HEAD request error:', error);
+    }
     return new NextResponse(null, { status: 502 });
   }
 }
@@ -114,7 +160,9 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
-      console.error('HLS fetch failed:', response.status, response.statusText, await response.text().catch(() => 'No body'));
+      if (process.env.NODE_ENV === 'development') {
+        console.error('HLS fetch failed:', response.status, response.statusText, await response.text().catch(() => 'No body'));
+      }
       return new NextResponse(`Upstream error: ${response.status}`, { status: 502 });
     }
 
@@ -123,7 +171,9 @@ export async function GET(request: NextRequest) {
 
     // Strict validation: Must be a valid M3U8 manifest
     if (!originalText.trim().startsWith('#EXTM3U')) {
-      console.error('Invalid upstream manifest (not M3U8):', contentType, originalText.substring(0, 200));
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Invalid upstream manifest (not M3U8):', contentType, originalText.substring(0, 200));
+      }
       return new NextResponse('Upstream returned invalid manifest', { status: 502 });
     }
 
@@ -134,13 +184,13 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        ...getCorsHeaders(request),
       },
     });
   } catch (error) {
-    console.error('HLS processing error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('HLS processing error:', error);
+    }
     return new NextResponse('Processing error', { status: 502 });
   }
 }
