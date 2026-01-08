@@ -381,10 +381,21 @@ function UserProfileDropdown({ user, onLogout }: { user: any; onLogout: () => vo
 export function UserProfile({ onAuthChange }: UserProfileProps) {
   const [authData, setAuthData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const syncAbortControllerRef = useRef<AbortController | null>(null);
 
   const syncSession = useCallback(async () => {
+    // Abort any in-flight sync request to prevent race conditions
+    if (syncAbortControllerRef.current) {
+      syncAbortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    syncAbortControllerRef.current = abortController;
+
     try {
-      const response = await fetch('/api/auth/session', { credentials: 'include' });
+      const response = await fetch('/api/auth/session', {
+        credentials: 'include',
+        signal: abortController.signal,
+      });
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -405,7 +416,9 @@ export function UserProfile({ onAuthChange }: UserProfileProps) {
       localStorage.setItem(STORAGE_KEYS.TWITCH_USERNAME, session.user.login);
 
       try {
-        const chatResponse = await fetch('/api/auth/chat-token');
+        const chatResponse = await fetch('/api/auth/chat-token', {
+          signal: abortController.signal,
+        });
         if (chatResponse.ok) {
           const chatData = await chatResponse.json();
           if (chatData.oauth) {
@@ -413,12 +426,22 @@ export function UserProfile({ onAuthChange }: UserProfileProps) {
           }
         }
       } catch (chatError) {
-        console.error('Failed to fetch chat token:', chatError);
+        // Ignore abort errors, log others in development
+        if (chatError instanceof Error && chatError.name !== 'AbortError') {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Failed to fetch chat token:', chatError);
+          }
+        }
       }
 
       return true;
     } catch (error) {
-      console.error('Failed to sync auth session:', error);
+      // Ignore abort errors, log others in development
+      if (error instanceof Error && error.name !== 'AbortError') {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Failed to sync auth session:', error);
+        }
+      }
       return false;
     } finally {
       setLoading(false);
@@ -430,16 +453,21 @@ export function UserProfile({ onAuthChange }: UserProfileProps) {
     window.location.href = '/api/auth/twitch';
   };
 
-  const handleLogout = () => {
-    fetch('/api/auth/logout', { method: 'POST' }).catch(error => {
-      console.error('Logout failed', error);
-    });
-
-    setAuthData(null);
-    onAuthChange?.(false);
-    localStorage.removeItem(STORAGE_KEYS.TWITCH_AUTH);
-    localStorage.removeItem(STORAGE_KEYS.TWITCH_USERNAME);
-    localStorage.removeItem(STORAGE_KEYS.TWITCH_OAUTH);
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Logout request failed:', error);
+      }
+    } finally {
+      // Always clear local state after server responds (or fails)
+      setAuthData(null);
+      onAuthChange?.(false);
+      localStorage.removeItem(STORAGE_KEYS.TWITCH_AUTH);
+      localStorage.removeItem(STORAGE_KEYS.TWITCH_USERNAME);
+      localStorage.removeItem(STORAGE_KEYS.TWITCH_OAUTH);
+    }
   };
 
   useEffect(() => {

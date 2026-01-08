@@ -18,12 +18,25 @@ export async function GET(request: NextRequest) {
   const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`;
 
+  // Helper to create redirect response and clear PKCE cookie
+  const createErrorRedirect = (errorCode: string) => {
+    const response = NextResponse.redirect(new URL(`/?auth_error=${encodeURIComponent(errorCode)}`, siteUrl));
+    response.cookies.delete('pkce_verifier');
+    return response;
+  };
+
   if (error) {
-    return NextResponse.redirect(new URL('/?auth_error=' + encodeURIComponent(error), siteUrl));
+    return createErrorRedirect(error);
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL('/?auth_error=no_code', siteUrl));
+    return createErrorRedirect('no_code');
+  }
+
+  // Retrieve PKCE code verifier from cookie
+  const codeVerifier = request.cookies.get('pkce_verifier')?.value;
+  if (!codeVerifier) {
+    return createErrorRedirect('pkce_missing');
   }
 
   const clientId = process.env.TWITCH_CLIENT_ID;
@@ -31,11 +44,11 @@ export async function GET(request: NextRequest) {
   const redirectUri = `${siteUrl}/api/auth/twitch/callback`;
 
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(new URL('/?auth_error=config_error', siteUrl));
+    return createErrorRedirect('config_error');
   }
 
   try {
-    // Exchange code for access token
+    // Exchange code for access token with PKCE verifier
     const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
       method: 'POST',
       headers: {
@@ -47,6 +60,7 @@ export async function GET(request: NextRequest) {
         code,
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
+        code_verifier: codeVerifier,
       }),
     });
 
@@ -100,16 +114,21 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(redirectUrl);
 
     applyCookieDescriptors(response, [
-      createTokenCookie(tokenCookieData),
-      createUserCookie(authData, tokenData.expires_in),
-      createSessionCookie(user.id),
+      createTokenCookie(tokenCookieData, request),
+      createUserCookie(authData, tokenData.expires_in, request),
+      createSessionCookie(user.id, request),
     ]);
+
+    // Clear the PKCE verifier cookie after successful auth
+    response.cookies.delete('pkce_verifier');
 
     return response;
 
   } catch (error) {
     // SECURITY: Log error without exposing sensitive details
-    console.error('OAuth callback error occurred');
-    return NextResponse.redirect(new URL('/?auth_error=callback_error', siteUrl));
+    if (process.env.NODE_ENV === 'development') {
+      console.error('OAuth callback error:', error);
+    }
+    return createErrorRedirect('callback_error');
   }
 }

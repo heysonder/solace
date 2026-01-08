@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import {
   applyCookieDescriptors,
   clearSessionCookie,
@@ -8,13 +8,13 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   const response = NextResponse.json({ success: true });
 
   applyCookieDescriptors(response, [
-    clearTokenCookie(),
-    clearUserCookie(),
-    clearSessionCookie(),
+    clearTokenCookie(request),
+    clearUserCookie(request),
+    clearSessionCookie(request),
   ]);
 
   return response;

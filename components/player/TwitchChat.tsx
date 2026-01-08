@@ -47,7 +47,7 @@ type Msg = {
 // SECURITY: Sanitize all user-generated content to prevent XSS
 const sanitizeContent = (content: string): string => {
   if (typeof window === 'undefined') return content; // SSR safety
-  return DOMPurify.sanitize(content, { 
+  return DOMPurify.sanitize(content, {
     ALLOWED_TAGS: [], // No HTML tags allowed
     ALLOWED_ATTR: [],
     FORBID_TAGS: ['script', 'object', 'embed', 'link', 'style'],

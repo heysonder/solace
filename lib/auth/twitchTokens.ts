@@ -2,9 +2,29 @@ import type { NextRequest, NextResponse } from 'next/server';
 import type { ResponseCookie } from 'next/dist/compiled/@edge-runtime/cookies';
 
 // Determine if we should use secure cookies
-// Use secure cookies in production OR when HTTPS is available
 const isProduction = process.env.NODE_ENV === 'production';
-const isSecure = isProduction || process.env.NEXT_PUBLIC_BASE_URL?.startsWith('https://');
+
+/**
+ * Determines if secure cookies should be used based on the request context.
+ * In production, always use secure cookies.
+ * In development, check the actual request protocol.
+ */
+function shouldUseSecureCookies(request?: NextRequest): boolean {
+  // Always use secure in production
+  if (isProduction) return true;
+
+  // Check if NEXT_PUBLIC_BASE_URL explicitly uses HTTPS
+  if (process.env.NEXT_PUBLIC_BASE_URL?.startsWith('https://')) return true;
+
+  // Check actual request protocol via forwarded headers
+  if (request) {
+    const forwardedProto = request.headers.get('x-forwarded-proto');
+    if (forwardedProto === 'https') return true;
+  }
+
+  // Default to false for local development over HTTP
+  return false;
+}
 
 export const TOKEN_COOKIE_NAME = 'twitch_tokens';
 export const USER_COOKIE_NAME = 'twitch_user';
@@ -38,7 +58,7 @@ export type AuthCookiePayload = {
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
-export function createTokenCookie(tokens: TwitchTokenCookie): CookieDescriptor {
+export function createTokenCookie(tokens: TwitchTokenCookie, request?: NextRequest): CookieDescriptor {
   // Keep the refresh token available well beyond the short-lived access token
   // so we can silently refresh sessions instead of forcing users to log in each visit.
   const maxAgeSeconds = ONE_YEAR_SECONDS;
@@ -48,7 +68,7 @@ export function createTokenCookie(tokens: TwitchTokenCookie): CookieDescriptor {
     value: JSON.stringify(tokens),
     options: {
       httpOnly: true,
-      secure: isSecure,
+      secure: shouldUseSecureCookies(request),
       sameSite: 'lax',
       maxAge: maxAgeSeconds,
       path: '/',
@@ -56,12 +76,13 @@ export function createTokenCookie(tokens: TwitchTokenCookie): CookieDescriptor {
   };
 }
 
-export function createUserCookie(payload: AuthCookiePayload, maxAgeSeconds: number): CookieDescriptor {
+export function createUserCookie(payload: AuthCookiePayload, maxAgeSeconds: number, request?: NextRequest): CookieDescriptor {
   return {
     name: USER_COOKIE_NAME,
     value: JSON.stringify(payload),
     options: {
-      secure: isSecure,
+      httpOnly: true, // Protect user data from XSS
+      secure: shouldUseSecureCookies(request),
       sameSite: 'lax',
       maxAge: Math.max(60, maxAgeSeconds),
       path: '/',
@@ -69,13 +90,13 @@ export function createUserCookie(payload: AuthCookiePayload, maxAgeSeconds: numb
   };
 }
 
-export function createSessionCookie(userId: string): CookieDescriptor {
+export function createSessionCookie(userId: string, request?: NextRequest): CookieDescriptor {
   return {
     name: SESSION_COOKIE_NAME,
     value: userId,
     options: {
       httpOnly: true,
-      secure: isSecure,
+      secure: shouldUseSecureCookies(request),
       sameSite: 'lax',
       maxAge: ONE_YEAR_SECONDS,
       path: '/',
@@ -83,13 +104,13 @@ export function createSessionCookie(userId: string): CookieDescriptor {
   };
 }
 
-export function clearTokenCookie(): CookieDescriptor {
+export function clearTokenCookie(request?: NextRequest): CookieDescriptor {
   return {
     name: TOKEN_COOKIE_NAME,
     value: '',
     options: {
       httpOnly: true,
-      secure: isSecure,
+      secure: shouldUseSecureCookies(request),
       sameSite: 'lax',
       maxAge: 0,
       path: '/',
@@ -97,12 +118,13 @@ export function clearTokenCookie(): CookieDescriptor {
   };
 }
 
-export function clearUserCookie(): CookieDescriptor {
+export function clearUserCookie(request?: NextRequest): CookieDescriptor {
   return {
     name: USER_COOKIE_NAME,
     value: '',
     options: {
-      secure: isSecure,
+      httpOnly: true, // Match the httpOnly flag from createUserCookie
+      secure: shouldUseSecureCookies(request),
       sameSite: 'lax',
       maxAge: 0,
       path: '/',
@@ -110,13 +132,13 @@ export function clearUserCookie(): CookieDescriptor {
   };
 }
 
-export function clearSessionCookie(): CookieDescriptor {
+export function clearSessionCookie(request?: NextRequest): CookieDescriptor {
   return {
     name: SESSION_COOKIE_NAME,
     value: '',
     options: {
       httpOnly: true,
-      secure: isSecure,
+      secure: shouldUseSecureCookies(request),
       sameSite: 'lax',
       maxAge: 0,
       path: '/',
@@ -213,14 +235,14 @@ export async function ensureValidTwitchTokens(
     user_id: tokens.user_id,
   };
 
-  const cookies: CookieDescriptor[] = [createTokenCookie(tokens)];
+  const cookies: CookieDescriptor[] = [createTokenCookie(tokens, request)];
 
   const userCookie = request.cookies.get(USER_COOKIE_NAME);
   if (userCookie?.value) {
     const authData = parseCookieJSON<AuthCookiePayload>(userCookie.value);
     if (authData) {
       authData.expires_at = tokens.expires_at;
-      cookies.push(createUserCookie(authData, tokens.expires_in));
+      cookies.push(createUserCookie(authData, tokens.expires_in, request));
     }
   }
 

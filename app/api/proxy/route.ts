@@ -1,5 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// SECURITY: Only allow same-origin requests or configured origins
+function getAllowedOrigin(request: NextRequest): string | null {
+  const origin = request.headers.get('origin');
+  const host = request.headers.get('host');
+
+  // Same-origin requests (no origin header or matches host)
+  if (!origin) return null; // Let browser handle same-origin
+
+  // Check if origin matches the host (same site)
+  try {
+    const originUrl = new URL(origin);
+    if (originUrl.host === host) {
+      return origin;
+    }
+  } catch {
+    // Invalid origin
+  }
+
+  // Check configured allowed origins
+  const allowedOrigins = process.env.ALLOWED_CORS_ORIGINS?.split(',').map(o => o.trim()) || [];
+  if (allowedOrigins.includes(origin)) {
+    return origin;
+  }
+
+  // In development, allow localhost
+  if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
+    return origin;
+  }
+
+  return null;
+}
+
 // SECURITY: Allowlist of permitted domains to prevent SSRF attacks
 const ALLOWED_DOMAINS = [
   'api.twitch.tv',
@@ -75,32 +107,46 @@ export async function GET(request: NextRequest) {
     const contentType = response.headers.get('content-type');
     const content = await response.text();
 
+    const allowedOrigin = getAllowedOrigin(request);
+    const corsHeaders: Record<string, string> = {
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    if (allowedOrigin) {
+      corsHeaders['Access-Control-Allow-Origin'] = allowedOrigin;
+    }
+
     return new NextResponse(content, {
       status: 200,
       headers: {
         'Content-Type': contentType || 'text/plain',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        ...corsHeaders,
         'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
       },
     });
   } catch (error) {
-    console.error('Proxy error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Proxy error:', error);
+    }
     return NextResponse.json(
-      { error: 'Failed to fetch resource' }, 
+      { error: 'Failed to fetch resource' },
       { status: 500 }
     );
   }
 }
 
-export async function OPTIONS() {
+export async function OPTIONS(request: NextRequest) {
+  const allowedOrigin = getAllowedOrigin(request);
+  const corsHeaders: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+  if (allowedOrigin) {
+    corsHeaders['Access-Control-Allow-Origin'] = allowedOrigin;
+  }
+
   return new NextResponse(null, {
     status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
+    headers: corsHeaders,
   });
 }
