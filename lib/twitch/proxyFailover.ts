@@ -32,6 +32,7 @@ export interface FailoverResult {
 
 /**
  * Tests if a proxy can successfully provide a playlist for the given channel
+ * Uses GET request and validates actual M3U8 content to avoid false positives
  */
 async function testProxy(
   proxy: ProxyEndpoint,
@@ -44,12 +45,12 @@ async function testProxy(
     const playlistUrl = proxy.getPlaylistUrl(channel);
     const proxyStreamUrl = `/api/hls?src=${encodeURIComponent(playlistUrl)}`;
 
-    // Test if the proxy can provide a valid playlist
+    // Use GET request to validate actual M3U8 content, not just reachability
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     const response = await fetch(proxyStreamUrl, {
-      method: 'HEAD',
+      method: 'GET',
       signal: controller.signal,
     });
 
@@ -57,13 +58,7 @@ async function testProxy(
 
     const responseTime = Date.now() - startTime;
 
-    if (response.ok) {
-      return {
-        proxy,
-        success: true,
-        responseTime,
-      };
-    } else {
+    if (!response.ok) {
       return {
         proxy,
         success: false,
@@ -71,12 +66,34 @@ async function testProxy(
         responseTime,
       };
     }
+
+    // Validate that response is actually M3U8 content
+    const text = await response.text();
+    if (!text.trim().startsWith('#EXTM3U')) {
+      return {
+        proxy,
+        success: false,
+        error: 'Invalid response: not M3U8 content',
+        responseTime,
+      };
+    }
+
+    return {
+      proxy,
+      success: true,
+      responseTime,
+    };
   } catch (error) {
     const responseTime = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Provide more context for common errors
+    const friendlyError = errorMessage.includes('abort')
+      ? `Timeout after ${timeout}ms`
+      : errorMessage;
     return {
       proxy,
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: friendlyError,
       responseTime,
     };
   }

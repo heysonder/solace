@@ -91,13 +91,29 @@ export default function TtvLolPlayer({ channel, onError }: TtvLolPlayerProps) {
             maxBufferLength: 60,
             enableWorker: true,
             debug: false,
+            // Timeout settings for faster failure detection
+            manifestLoadingTimeOut: 10000,
+            manifestLoadingMaxRetry: 1,
+            levelLoadingTimeOut: 10000,
+            fragLoadingTimeOut: 20000,
           });
 
           hlsRef.current = hls;
 
+          // Set a timeout to fallback if manifest never loads
+          const manifestTimeout = setTimeout(() => {
+            if (isMounted && isLoading) {
+              console.error('[TtvLolPlayer] Manifest load timeout - falling back to iframe');
+              hls.destroy();
+              hlsRef.current = null;
+              onError?.();
+            }
+          }, 15000);
+
           // Manifest loaded - extract quality levels
           hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
             if (!isMounted) return;
+            clearTimeout(manifestTimeout);
             const levels = data.levels.map((level: any, index: number) => ({
               level: index,
               height: level.height,
@@ -116,7 +132,13 @@ export default function TtvLolPlayer({ channel, onError }: TtvLolPlayerProps) {
 
           // Error handling with automatic proxy switching
           hls.on(Hls.Events.ERROR, async (event, data) => {
-            console.error('[TtvLolPlayer] HLS Error:', data);
+            console.error('[TtvLolPlayer] HLS Error:', {
+              type: data.type,
+              details: data.details,
+              fatal: data.fatal,
+              url: data.url,
+              response: data.response,
+            });
 
             if (data.fatal) {
               const shouldSwitch = healthMonitorRef.current?.reportFailure();
@@ -170,6 +192,7 @@ export default function TtvLolPlayer({ channel, onError }: TtvLolPlayerProps) {
 
           return () => {
             isMounted = false;
+            clearTimeout(manifestTimeout);
             hls.destroy();
             hlsRef.current = null;
           };
