@@ -417,6 +417,7 @@ export function UserProfile({ onAuthChange }: UserProfileProps) {
 
       try {
         const chatResponse = await fetch('/api/auth/chat-token', {
+          credentials: 'include',
           signal: abortController.signal,
         });
         if (chatResponse.ok) {
@@ -424,13 +425,13 @@ export function UserProfile({ onAuthChange }: UserProfileProps) {
           if (chatData.oauth) {
             localStorage.setItem(STORAGE_KEYS.TWITCH_OAUTH, chatData.oauth);
           }
+        } else {
+          console.warn('Chat token request failed:', chatResponse.status);
         }
       } catch (chatError) {
-        // Ignore abort errors, log others in development
+        // Ignore abort errors, log others
         if (chatError instanceof Error && chatError.name !== 'AbortError') {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Failed to fetch chat token:', chatError);
-          }
+          console.warn('Failed to fetch chat token:', chatError.message);
         }
       }
 
