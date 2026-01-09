@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { shouldUseSecureCookies } from '@/lib/auth/twitchTokens';
 
 // PKCE helper functions
 function generateCodeVerifier(): string {
@@ -67,10 +68,10 @@ export async function GET(request: NextRequest) {
   const response = NextResponse.redirect(authUrl.toString());
 
   // Store the code verifier in an HTTP-only cookie for the callback
-  const isSecure = isProduction || request.headers.get('x-forwarded-proto') === 'https';
+  // Use consistent secure flag logic with other auth cookies
   response.cookies.set('pkce_verifier', codeVerifier, {
     httpOnly: true,
-    secure: isSecure,
+    secure: shouldUseSecureCookies(request),
     sameSite: 'lax',
     maxAge: 600, // 10 minutes - enough time to complete OAuth flow
     path: '/',

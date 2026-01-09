@@ -48,6 +48,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Log diagnostic info for debugging
+    console.log('OAuth callback initiated:', {
+      hasCode: !!code,
+      hasVerifier: !!codeVerifier,
+      redirectUri,
+    });
+
     // Exchange code for access token with PKCE verifier
     const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
       method: 'POST',
@@ -65,7 +72,13 @@ export async function GET(request: NextRequest) {
     });
 
     if (!tokenResponse.ok) {
-      throw new Error('Token exchange failed');
+      const errorBody = await tokenResponse.text();
+      console.error('Token exchange failed:', {
+        status: tokenResponse.status,
+        error: errorBody,
+        redirectUri,
+      });
+      return createErrorRedirect('token_exchange_failed');
     }
 
     const tokenData = await tokenResponse.json();
@@ -79,7 +92,12 @@ export async function GET(request: NextRequest) {
     });
 
     if (!userResponse.ok) {
-      throw new Error('Failed to fetch user info');
+      const errorBody = await userResponse.text();
+      console.error('User info fetch failed:', {
+        status: userResponse.status,
+        error: errorBody,
+      });
+      return createErrorRedirect('user_fetch_failed');
     }
 
     const userData = await userResponse.json();
@@ -125,10 +143,11 @@ export async function GET(request: NextRequest) {
     return response;
 
   } catch (error) {
-    // SECURITY: Log error without exposing sensitive details
-    if (process.env.NODE_ENV === 'development') {
-      console.error('OAuth callback error:', error);
-    }
+    // Log error for debugging (Vercel logs are private)
+    console.error('OAuth callback error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return createErrorRedirect('callback_error');
   }
 }
