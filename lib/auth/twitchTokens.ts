@@ -9,7 +9,7 @@ const isProduction = process.env.NODE_ENV === 'production';
  * In production, always use secure cookies.
  * In development, check the actual request protocol.
  */
-function shouldUseSecureCookies(request?: NextRequest): boolean {
+export function shouldUseSecureCookies(request?: NextRequest): boolean {
   // Always use secure in production
   if (isProduction) return true;
 
