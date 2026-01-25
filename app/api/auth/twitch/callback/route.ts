@@ -7,6 +7,7 @@ import {
   type AuthCookiePayload,
   type TwitchTokenCookie,
 } from '@/lib/auth/twitchTokens';
+import { upsertUser } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -133,6 +134,20 @@ export async function GET(request: NextRequest) {
 
     const userData = await userResponse.json();
     const user = userData.data[0];
+
+    // Save/update user in database
+    try {
+      await upsertUser({
+        id: user.id,
+        login: user.login,
+        displayName: user.display_name,
+        email: user.email || null,
+        profileImageUrl: user.profile_image_url || null,
+      });
+    } catch (dbError) {
+      // Log but don't fail auth if database save fails
+      console.error('Failed to save user to database:', dbError);
+    }
 
     // SECURITY: Store auth data in HTTP-only cookie instead of URL hash
     const expiresAt = Date.now() + tokenData.expires_in * 1000;
