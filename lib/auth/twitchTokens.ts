@@ -174,6 +174,47 @@ export function extractSessionIdentifier(request: NextRequest): string | undefin
   return sessionCookie?.value;
 }
 
+export type AuthenticatedUser = {
+  id: string;
+  login: string;
+  displayName: string;
+  profileImageUrl?: string | null;
+};
+
+/**
+ * Get the authenticated user from the request cookies.
+ * Returns null if not authenticated or if tokens are invalid.
+ */
+export async function getAuthenticatedUser(
+  request: NextRequest
+): Promise<AuthenticatedUser | null> {
+  const userCookie = request.cookies.get(USER_COOKIE_NAME);
+  if (!userCookie?.value) {
+    return null;
+  }
+
+  const authData = parseCookieJSON<AuthCookiePayload>(userCookie.value);
+  if (!authData?.user?.id) {
+    return null;
+  }
+
+  // Check if session is expired
+  if (authData.expires_at && authData.expires_at < Date.now()) {
+    // Try to refresh tokens
+    const { tokens } = await ensureValidTwitchTokens(request);
+    if (!tokens) {
+      return null;
+    }
+  }
+
+  return {
+    id: authData.user.id,
+    login: authData.user.login,
+    displayName: authData.user.display_name,
+    profileImageUrl: authData.user.profile_image_url,
+  };
+}
+
 export async function ensureValidTwitchTokens(
   request: NextRequest
 ): Promise<{ tokens: TwitchTokenCookie | null; cookies?: CookieDescriptor[] }> {
