@@ -79,11 +79,11 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
       if (response.ok) {
         const data = await response.json();
         if (data.favorites && Array.isArray(data.favorites)) {
-          const dbFavorites = new Set(data.favorites.map((f: string) => f.toLowerCase()));
+          const dbFavorites = new Set<string>(data.favorites.map((f: string) => f.toLowerCase()));
           const localFavorites = getFavoritesFromStorage();
 
           // Merge: combine both sets (union)
-          const merged = new Set([...localFavorites, ...dbFavorites]);
+          const merged = new Set<string>([...localFavorites, ...dbFavorites]);
 
           // Update local state and storage
           setFavorites(merged);
