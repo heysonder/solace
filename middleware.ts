@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // SECURITY: Rate limiting storage
+// NOTE: This in-memory Map works for single-instance deployments but won't
+// properly rate limit in serverless/multi-instance environments where each
+// instance maintains its own state. For production at scale, consider using
+// a distributed rate limiting solution (Redis, Vercel KV, Upstash, etc.)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
 // Generate a secure random session ID using Web Crypto API (Edge Runtime compatible)
@@ -73,14 +77,19 @@ export function middleware(request: NextRequest) {
   }
 
   // SECURITY: Content Security Policy (enhanced)
+  // NOTE: 'unsafe-inline' is required for Twitch SDK embed to function properly.
+  // The Twitch SDK injects inline scripts that would fail without it.
+  // This is a known tradeoff for Twitch embed functionality.
   const csp = [
     "default-src 'self'",
+    // unsafe-inline required for Twitch SDK - see CLAUDE.md for justification
     "script-src 'self' 'unsafe-inline' https://embed.twitch.tv https://player.twitch.tv https://www.twitch.tv https://static.twitchcdn.net https://va.vercel-scripts.com https://vercel.live",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https: blob:",
     "font-src 'self' https://fonts.gstatic.com",
     "connect-src 'self' https://api.twitch.tv https://gql.twitch.tv https://id.twitch.tv https://static-cdn.jtvnw.net https://vitals.vercel-insights.com wss://irc-ws.chat.twitch.tv https://api.betterttv.net https://api.frankerfacez.com https://7tv.io https://cdn.7tv.app https://clipr.xyz https://*.luminous.dev https://*.cdn-perfprod.com https://twitch.nadeko.net",
     "frame-src https://embed.twitch.tv https://player.twitch.tv https://vercel.live",
+    "frame-ancestors 'self'", // Prevent clickjacking
     "media-src 'self' https: blob:",
     "object-src 'none'",
     "base-uri 'self'",

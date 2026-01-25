@@ -497,38 +497,45 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
       return;
     }
 
+    let isMounted = true;
+    const abortController = new AbortController();
+
     const fetchChannelData = async () => {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const timeoutId = setTimeout(() => abortController.abort(), 8000);
         let res: Response;
         try {
           res = await fetch(
             `/api/channel/${channel}`,
-            { signal: controller.signal }
+            { signal: abortController.signal }
           );
         } finally {
           clearTimeout(timeoutId);
         }
-        
+
+        if (!isMounted) return;
+
         if (res.ok) {
           const data = await res.json();
           const userId = data.user?.id;
-          setChannelId(userId || "");
-          setIsLive(data.liveStream !== null);
-          
+          if (isMounted) {
+            setChannelId(userId || "");
+            setIsLive(data.liveStream !== null);
+          }
+
           // Load emotes based on user preferences
           const emotePromises = [];
           if (bttvEnabled) emotePromises.push(fetchBttvEmotes(channel, userId));
           if (ffzEnabled) emotePromises.push(fetchFfzEmotes(channel));
           if (seventvEnabled) emotePromises.push(fetchSeventvEmotes(channel, userId));
-          
+
           await Promise.all(emotePromises);
         } else {
           // Channel API returned error status
           throw new Error(`Channel API returned ${res.status}`);
         }
       } catch (e) {
+        if (!isMounted) return;
         // Failed to fetch channel data
         setIsLive(false);
         // Fallback: load global emotes based on user preferences
@@ -536,12 +543,17 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
         if (bttvEnabled) fallbackEmotePromises.push(fetchBttvEmotes(channel));
         if (ffzEnabled) fallbackEmotePromises.push(fetchFfzEmotes(channel));
         if (seventvEnabled) fallbackEmotePromises.push(fetchSeventvEmotes(channel));
-        
+
         await Promise.all(fallbackEmotePromises);
       }
     };
-    
+
     fetchChannelData();
+
+    return () => {
+      isMounted = false;
+      abortController.abort();
+    };
   }, [channel, fetchBttvEmotes, fetchFfzEmotes, fetchSeventvEmotes, playerMode, bttvEnabled, ffzEnabled, seventvEnabled]);
 
   useEffect(() => {
