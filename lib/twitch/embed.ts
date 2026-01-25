@@ -8,28 +8,43 @@ export async function loadTwitchSDK(): Promise<any> {
   if (typeof window === "undefined") {
     throw new Error("Twitch SDK can only be loaded in browser environment");
   }
-  
+
   // Return cached SDK if available
   if (twitchSDK) {
     return twitchSDK;
   }
-  
+
   // Return existing promise if loading is in progress
   if (twitchSDKPromise) {
     return await twitchSDKPromise;
   }
-  
+
   // Check if SDK is already loaded
   if ((window as any).Twitch) {
     twitchSDK = (window as any).Twitch;
     return twitchSDK;
   }
-  
-  // Check for existing script FIRST to avoid race conditions
+
+  // SECURITY FIX: Atomic check-and-set to prevent race conditions
+  // Check for existing script and handle the case where script exists but promise is null
   const existingScript = document.getElementById('twitch-embed-script');
   if (existingScript) {
-    // Script already exists, return existing promise
-    return twitchSDKPromise;
+    // Script already exists - wait for SDK to become available
+    twitchSDKPromise = new Promise<any>((resolve, reject) => {
+      const checkSDK = (attempts = 0) => {
+        if ((window as any).Twitch) {
+          twitchSDK = (window as any).Twitch;
+          resolve(twitchSDK);
+        } else if (attempts < 50) {
+          // Wait up to 5 seconds for SDK to initialize
+          setTimeout(() => checkSDK(attempts + 1), 100);
+        } else {
+          reject(new Error("Twitch SDK script exists but SDK not available"));
+        }
+      };
+      checkSDK();
+    });
+    return await twitchSDKPromise;
   }
 
   // Start loading the SDK via proxy
@@ -159,10 +174,23 @@ export async function createTwitchEmbed(
   });
   
   console.log("Creating Twitch embed with parent domains:", parentDomains);
-  
-  // Clear container
-  container.innerHTML = '';
-  
+
+  // SECURITY FIX: Properly clean up any existing embed before clearing container
+  // This prevents removeChild errors mentioned in CLAUDE.md
+  const existingIframe = container.querySelector('iframe');
+  if (existingIframe) {
+    try {
+      existingIframe.remove();
+    } catch {
+      // Ignore errors during cleanup
+    }
+  }
+
+  // Clear container after removing existing elements (empty string is safe)
+  while (container.firstChild) {
+    container.removeChild(container.firstChild);
+  }
+
   try {
     const embed = new Twitch.Embed(container, {
       channel: options.channel.toLowerCase(),

@@ -198,9 +198,20 @@ export default function TtvLolPlayer({ channel, onError }: TtvLolPlayerProps) {
           };
         } else if (videoRef.current?.canPlayType('application/vnd.apple.mpegurl')) {
           // Native HLS support (Safari)
-          videoRef.current.src = result.streamUrl;
+          const videoElement = videoRef.current;
+          videoElement.src = result.streamUrl;
           setIsLoading(false);
           healthMonitorRef.current?.reportSuccess();
+
+          // Return cleanup for native HLS path
+          return () => {
+            isMounted = false;
+            if (videoElement) {
+              videoElement.pause();
+              videoElement.removeAttribute('src');
+              videoElement.load();
+            }
+          };
         } else {
           setLoadError('HLS not supported in this browser');
         }
@@ -212,13 +223,23 @@ export default function TtvLolPlayer({ channel, onError }: TtvLolPlayerProps) {
       }
     };
 
-    initializePlayer();
+    const cleanupPromise = initializePlayer();
 
     return () => {
       isMounted = false;
+      // Handle cleanup from async initialization
+      cleanupPromise?.then((cleanup) => {
+        if (typeof cleanup === 'function') {
+          cleanup();
+        }
+      });
+      // Cleanup HLS if it was initialized
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel, preferredProxy]);
+  }, [channel, preferredProxy, onError]);
 
   const handleQualityChange = (level: number) => {
     if (hlsRef.current) {

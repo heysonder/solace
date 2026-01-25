@@ -41,13 +41,33 @@ interface FavoritesProviderProps {
 }
 
 export function FavoritesProvider({ children }: FavoritesProviderProps) {
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(true);
+  // Lazy initialization to prevent SSR hydration mismatch
+  const [favorites, setFavorites] = useState<Set<string>>(() => {
+    // Only access localStorage on client side during initialization
+    if (typeof window !== 'undefined') {
+      return getFavoritesFromStorage();
+    }
+    return new Set();
+  });
+  const [isLoading, setIsLoading] = useState(() => typeof window === 'undefined');
 
-  // Initialize favorites from localStorage
+  // Handle hydration - ensure client state matches after mount
   useEffect(() => {
+    // Re-sync from localStorage on mount (handles SSR hydration)
     setFavorites(getFavoritesFromStorage());
     setIsLoading(false);
+  }, []);
+
+  // Cross-tab synchronization via storage event
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === FAVORITES_STORAGE_KEY) {
+        setFavorites(getFavoritesFromStorage());
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const addFavorite = (channelLogin: string) => {

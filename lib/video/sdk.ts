@@ -23,30 +23,49 @@ export async function loadTwitchSDKReliable(): Promise<any> {
     const script = document.createElement('script');
     script.src = '/api/dev-proxy?url=' + encodeURIComponent('https://embed.twitch.tv/embed/v1.js');
     script.id = 'twitch-sdk-dev';
-    
+
+    let isSettled = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const safeResolve = (value: any) => {
+      if (!isSettled) {
+        isSettled = true;
+        clearTimeout(timeoutId);
+        resolve(value);
+      }
+    };
+
+    const safeReject = (error: Error) => {
+      if (!isSettled) {
+        isSettled = true;
+        clearTimeout(timeoutId);
+        reject(error);
+      }
+    };
+
     // Success handler
     script.onload = () => {
       const checkSDK = (attempts = 0) => {
         if ((window as any).Twitch?.Embed) {
-          resolve((window as any).Twitch);
+          safeResolve((window as any).Twitch);
         } else if (attempts < 20) {
           setTimeout(() => checkSDK(attempts + 1), 50);
         } else {
-          reject(new Error('SDK loaded but Twitch.Embed not available'));
+          safeReject(new Error('SDK loaded but Twitch.Embed not available'));
         }
       };
       checkSDK();
     };
-    
-    script.onerror = () => reject(new Error('Script failed to load'));
-    
+
+    script.onerror = () => safeReject(new Error('Script failed to load'));
+
     // Only append if not already exists
     if (!document.getElementById('twitch-sdk-dev')) {
       document.head.appendChild(script);
     }
-    
-    // 15 second timeout
-    setTimeout(() => reject(new Error('SDK load timeout')), 15000);
+
+    // 15 second timeout - will be cleared on success/failure
+    timeoutId = setTimeout(() => safeReject(new Error('SDK load timeout')), 15000);
   });
   
   return sdkPromise;
@@ -99,8 +118,18 @@ export async function createTwitchEmbedReliable(
   // 3. Get runtime parent domains
   const parentDomains = getParentDomains();
   
-  // 4. Clear container
-  container.innerHTML = '';
+  // 4. Clear container safely (prevents removeChild errors)
+  const existingIframe = container.querySelector('iframe');
+  if (existingIframe) {
+    try {
+      existingIframe.remove();
+    } catch {
+      // Ignore cleanup errors
+    }
+  }
+  while (container.firstChild) {
+    container.removeChild(container.firstChild);
+  }
   
   // 5. Create embed with proper config
   const embed = new Twitch.Embed(container, {
