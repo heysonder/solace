@@ -36,10 +36,10 @@ export default function CookieConsent() {
         <div className="flex items-start gap-3">
           <div className="flex-1">
             <h3 className="text-sm font-semibold text-white mb-2">
-              Cookie & Data Usage
+              cookies & local storage
             </h3>
             <p className="text-xs text-text-muted mb-2 leading-relaxed">
-              We use cookies and store data via Prisma to enhance your Twitch experience.
+              we use cookies and local storage to enhance your twitch viewing experience.
             </p>
 
             {/* Expandable Details */}
@@ -50,27 +50,26 @@ export default function CookieConsent() {
               {showDetails ? (
                 <>
                   <ChevronUp className="h-3 w-3" />
-                  Hide details
+                  hide details
                 </>
               ) : (
                 <>
                   <ChevronDown className="h-3 w-3" />
-                  View more
+                  view more
                 </>
               )}
             </button>
 
             {showDetails && (
               <div className="mb-3 p-2 bg-black/20 rounded text-xs text-text-muted border border-white/5">
-                <p className="font-semibold text-white mb-1.5">What we store in our database:</p>
+                <p className="font-semibold text-white mb-1.5">what we store locally:</p>
                 <ul className="space-y-1 ml-3 list-disc">
-                  <li><strong>User Profile:</strong> Twitch ID, username, display name, email, avatar</li>
-                  <li><strong>Favorites:</strong> Channels you&apos;ve favorited</li>
-                  <li><strong>Follows:</strong> Channels you follow, last live timestamps</li>
-                  <li><strong>Preferences:</strong> Player proxy selection, chat font size, timestamp visibility</li>
+                  <li><strong>favorites:</strong> channels you&apos;ve favorited</li>
+                  <li><strong>preferences:</strong> player selection, chat settings, emote providers</li>
+                  <li><strong>session:</strong> authentication state for twitch login</li>
                 </ul>
                 <p className="mt-2 text-[11px] leading-relaxed">
-                  Third-party cookies sync your Twitch login with the embedded player so you can interact without logging in again.
+                  third-party cookies sync your twitch login with the embedded player so you can interact without logging in again.
                 </p>
               </div>
             )}
@@ -80,20 +79,20 @@ export default function CookieConsent() {
                 onClick={handleDecline}
                 className="px-3 py-1.5 text-xs bg-transparent border border-white/20 text-text-muted hover:text-white hover:border-white/40 rounded transition-colors"
               >
-                No thanks
+                no thanks
               </button>
               <button
                 onClick={handleAccept}
                 className="px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded font-medium transition-colors"
               >
-                Accept
+                accept
               </button>
             </div>
           </div>
           <button
             onClick={handleDecline}
             className="text-text-muted hover:text-white p-1 -mt-1 -mr-1 transition-colors"
-            aria-label="Close"
+            aria-label="close"
           >
             <X className="h-4 w-4" />
           </button>

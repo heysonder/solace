@@ -12,16 +12,36 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get('code');
   const error = searchParams.get('error');
+  const state = searchParams.get('state');
 
-  // Dynamically determine the site URL from the request
-  const protocol = request.headers.get('x-forwarded-proto') || 'https';
-  const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`;
+  // SECURITY: Always require NEXT_PUBLIC_SITE_URL in production to prevent open redirect
+  const isProduction = process.env.NODE_ENV === 'production';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 
-  // Helper to create redirect response and clear PKCE cookie
+  if (!siteUrl) {
+    if (isProduction) {
+      console.error('CRITICAL: NEXT_PUBLIC_SITE_URL not set in production');
+      return new Response('Server configuration error', { status: 500 });
+    }
+    // In development, allow fallback to request headers
+    const protocol = request.headers.get('x-forwarded-proto') || 'https';
+    const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
+    if (!host) {
+      return new Response('Unable to determine site URL', { status: 500 });
+    }
+  }
+
+  const effectiveSiteUrl = siteUrl || (() => {
+    const protocol = request.headers.get('x-forwarded-proto') || 'https';
+    const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
+    return `${protocol}://${host}`;
+  })();
+
+  // Helper to create redirect response and clear OAuth cookies
   const createErrorRedirect = (errorCode: string) => {
-    const response = NextResponse.redirect(new URL(`/?auth_error=${encodeURIComponent(errorCode)}`, siteUrl));
+    const response = NextResponse.redirect(new URL(`/?auth_error=${encodeURIComponent(errorCode)}`, effectiveSiteUrl));
     response.cookies.delete('pkce_verifier');
+    response.cookies.delete('oauth_state');
     return response;
   };
 
@@ -33,6 +53,17 @@ export async function GET(request: NextRequest) {
     return createErrorRedirect('no_code');
   }
 
+  // SECURITY: Validate CSRF state parameter
+  const storedState = request.cookies.get('oauth_state')?.value;
+  if (!state || !storedState || state !== storedState) {
+    console.error('OAuth state mismatch - potential CSRF attack', {
+      hasState: !!state,
+      hasStoredState: !!storedState,
+      match: state === storedState,
+    });
+    return createErrorRedirect('state_mismatch');
+  }
+
   // Retrieve PKCE code verifier from cookie
   const codeVerifier = request.cookies.get('pkce_verifier')?.value;
   if (!codeVerifier) {
@@ -41,7 +72,7 @@ export async function GET(request: NextRequest) {
 
   const clientId = process.env.TWITCH_CLIENT_ID;
   const clientSecret = process.env.TWITCH_CLIENT_SECRET;
-  const redirectUri = `${siteUrl}/api/auth/twitch/callback`;
+  const redirectUri = `${effectiveSiteUrl}/api/auth/twitch/callback`;
 
   if (!clientId || !clientSecret) {
     return createErrorRedirect('config_error');
@@ -126,7 +157,7 @@ export async function GET(request: NextRequest) {
       user_id: user.id,
     };
 
-    const redirectUrl = new URL('/', siteUrl);
+    const redirectUrl = new URL('/', effectiveSiteUrl);
     redirectUrl.searchParams.set('auth', 'success');
 
     const response = NextResponse.redirect(redirectUrl);
@@ -137,8 +168,9 @@ export async function GET(request: NextRequest) {
       createSessionCookie(user.id, request),
     ]);
 
-    // Clear the PKCE verifier cookie after successful auth
+    // Clear OAuth flow cookies after successful auth
     response.cookies.delete('pkce_verifier');
+    response.cookies.delete('oauth_state');
 
     return response;
 
