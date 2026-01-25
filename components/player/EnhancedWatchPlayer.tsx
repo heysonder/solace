@@ -24,6 +24,13 @@ export default function EnhancedWatchPlayer({ channel, parent }: EnhancedWatchPl
     setUseFallback(true);
   }, []);
 
+  // Extract stable primitive values from envInfo to avoid re-runs when object reference changes
+  const { browser, platform, media } = envInfo;
+  const isSafari = browser.isSafari;
+  const isMacOS = platform.isMacOS;
+  const isIOS = platform.isIOS;
+  const preferNativeHLS = media.preferNativeHLS;
+
   // Determine which player to use based on browser, platform, and user preferences
   useEffect(() => {
     const proxySelection = localStorage.getItem(STORAGE_KEYS.PROXY_SELECTION);
@@ -34,18 +41,17 @@ export default function EnhancedWatchPlayer({ channel, parent }: EnhancedWatchPl
     setUseIframePlayer(shouldUseIframe);
 
     // Detect if we should use Safari native player
-    // Use envInfo from hook (already detected once on mount)
     if (!shouldUseIframe && !disableNativePlayer) {
       // Use native player for Safari on macOS or iOS (better performance)
-      const shouldUseSafariNativePlayer = envInfo.media.preferNativeHLS &&
-                                          (envInfo.platform.isMacOS || envInfo.platform.isIOS) &&
-                                          envInfo.browser.isSafari;
+      const shouldUseSafariNativePlayer = preferNativeHLS &&
+                                          (isMacOS || isIOS) &&
+                                          isSafari;
 
       if (process.env.NODE_ENV === 'development') {
         console.log('[EnhancedWatchPlayer] Player selection:', {
-          browser: envInfo.browser.isSafari ? 'Safari' : 'Other',
-          platform: envInfo.platform.platformName,
-          preferNativeHLS: envInfo.media.preferNativeHLS,
+          browser: isSafari ? 'Safari' : 'Other',
+          platform: platform.platformName,
+          preferNativeHLS,
           useSafariNative: shouldUseSafariNativePlayer,
           proxySelection,
         });
@@ -62,15 +68,15 @@ export default function EnhancedWatchPlayer({ channel, parent }: EnhancedWatchPl
         const newValue = e.newValue;
         setUseIframePlayer(newValue === 'iframe');
 
-        // Re-evaluate Safari native player using cached envInfo
+        // Re-evaluate Safari native player
         if (newValue !== 'iframe') {
           const disableNative = localStorage.getItem(STORAGE_KEYS.DISABLE_NATIVE_PLAYER) === 'true';
 
           setUseSafariNative(
             !disableNative &&
-            envInfo.media.preferNativeHLS &&
-            (envInfo.platform.isMacOS || envInfo.platform.isIOS) &&
-            envInfo.browser.isSafari
+            preferNativeHLS &&
+            (isMacOS || isIOS) &&
+            isSafari
           );
         } else {
           setUseSafariNative(false);
@@ -80,14 +86,14 @@ export default function EnhancedWatchPlayer({ channel, parent }: EnhancedWatchPl
         if (disabled) {
           setUseSafariNative(false);
         } else {
-          // Re-check if we should use native player using cached envInfo
+          // Re-check if we should use native player
           const proxyPref = localStorage.getItem(STORAGE_KEYS.PROXY_SELECTION);
 
           setUseSafariNative(
             proxyPref !== 'iframe' &&
-            envInfo.media.preferNativeHLS &&
-            (envInfo.platform.isMacOS || envInfo.platform.isIOS) &&
-            envInfo.browser.isSafari
+            preferNativeHLS &&
+            (isMacOS || isIOS) &&
+            isSafari
           );
         }
       }
@@ -95,7 +101,7 @@ export default function EnhancedWatchPlayer({ channel, parent }: EnhancedWatchPl
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [envInfo]);
+  }, [isSafari, isMacOS, isIOS, preferNativeHLS, platform.platformName]);
 
   // Show iframe player if user selected it OR if proxy player failed
   if (useFallback || useIframePlayer) {

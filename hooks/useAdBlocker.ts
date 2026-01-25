@@ -53,6 +53,9 @@ export function useAdBlocker(enabled: boolean = false): AdBlockerHook {
       return;
     }
 
+    // Store message handler reference for cleanup
+    let messageHandler: ((event: MessageEvent) => void) | null = null;
+
     // Register service worker only once per app lifecycle
     if ('serviceWorker' in navigator && !swRegistered) {
       swRegistered = true;
@@ -65,7 +68,7 @@ export function useAdBlocker(enabled: boolean = false): AdBlockerHook {
           setIsActive(true);
 
           // Listen for messages from SW
-          navigator.serviceWorker.addEventListener('message', (event) => {
+          messageHandler = (event: MessageEvent) => {
             if (event.data.type === 'AD_BLOCKED') {
               updateStats('blockedRequests');
               updateStats('savedBandwidth', event.data.size || 1024);
@@ -74,7 +77,8 @@ export function useAdBlocker(enabled: boolean = false): AdBlockerHook {
             } else if (event.data.type === 'GQL_BLOCKED') {
               updateStats('gqlBlocks');
             }
-          });
+          };
+          navigator.serviceWorker.addEventListener('message', messageHandler);
         })
         .catch(err => {
           console.error('SW registration failed:', err);
@@ -131,6 +135,10 @@ export function useAdBlocker(enabled: boolean = false): AdBlockerHook {
     return () => {
       if (originalFetchRef.current) {
         window.fetch = originalFetchRef.current;
+      }
+      // Remove service worker message listener to prevent memory leak
+      if (messageHandler && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', messageHandler);
       }
       setIsActive(false);
     };

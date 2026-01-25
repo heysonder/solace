@@ -8,6 +8,13 @@ function generateCodeVerifier(): string {
   return base64URLEncode(array);
 }
 
+// CSRF state parameter generation
+function generateState(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return base64URLEncode(array);
+}
+
 async function generateCodeChallenge(verifier: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
@@ -57,6 +64,9 @@ export async function GET(request: NextRequest) {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = await generateCodeChallenge(codeVerifier);
 
+  // SECURITY: Generate CSRF state parameter
+  const state = generateState();
+
   const authUrl = new URL('https://id.twitch.tv/oauth2/authorize');
   authUrl.searchParams.set('client_id', clientId);
   authUrl.searchParams.set('redirect_uri', redirectUri);
@@ -64,16 +74,28 @@ export async function GET(request: NextRequest) {
   authUrl.searchParams.set('scope', scopes.join(' '));
   authUrl.searchParams.set('code_challenge', codeChallenge);
   authUrl.searchParams.set('code_challenge_method', 'S256');
+  authUrl.searchParams.set('state', state);
 
   const response = NextResponse.redirect(authUrl.toString());
+
+  const secureCookies = shouldUseSecureCookies(request);
 
   // Store the code verifier in an HTTP-only cookie for the callback
   // Use consistent secure flag logic with other auth cookies
   response.cookies.set('pkce_verifier', codeVerifier, {
     httpOnly: true,
-    secure: shouldUseSecureCookies(request),
+    secure: secureCookies,
     sameSite: 'lax',
     maxAge: 600, // 10 minutes - enough time to complete OAuth flow
+    path: '/',
+  });
+
+  // SECURITY: Store CSRF state in HTTP-only cookie
+  response.cookies.set('oauth_state', state, {
+    httpOnly: true,
+    secure: secureCookies,
+    sameSite: 'lax',
+    maxAge: 600, // 10 minutes
     path: '/',
   });
 

@@ -29,14 +29,34 @@ export default function Home() {
   const { favorites } = useFavorites();
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  // Use refs to track current state without causing dependency changes
+  const cursorRef = useRef<string | null>(null);
+  const loadingRef = useRef(false);
+  const backgroundLoadingRef = useRef(false);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    cursorRef.current = cursor;
+  }, [cursor]);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
+  useEffect(() => {
+    backgroundLoadingRef.current = backgroundLoading;
+  }, [backgroundLoading]);
+
   const load = useCallback(async (opts?: { background?: boolean }) => {
-    if (loading || backgroundLoading) return;
+    if (loadingRef.current || backgroundLoadingRef.current) return;
 
     const isBackground = opts?.background ?? false;
     if (isBackground) {
       setBackgroundLoading(true);
+      backgroundLoadingRef.current = true;
     } else {
       setLoading(true);
+      loadingRef.current = true;
     }
     setError(null);
 
@@ -44,8 +64,8 @@ export default function Home() {
       // Build URL params safely
       const params = new URLSearchParams();
       params.set("first", PAGE_SIZE.toString());
-      if (cursor) {
-        params.set("after", cursor);
+      if (cursorRef.current) {
+        params.set("after", cursorRef.current);
       }
 
       const url = `/api/streams?${params.toString()}`;
@@ -70,13 +90,17 @@ export default function Home() {
     } finally {
       setLoading(false);
       setBackgroundLoading(false);
+      loadingRef.current = false;
+      backgroundLoadingRef.current = false;
     }
-  }, [loading, backgroundLoading, cursor]);
+  }, []);
 
+  // Initial load - runs only once
   useEffect(() => {
     load();
   }, [load]);
 
+  // Prefetch effect
   useEffect(() => {
     if (!cursor || loading || backgroundLoading) return;
     if (items.length >= PREFETCH_TARGET) return;
@@ -88,6 +112,7 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [cursor, items.length, loading, backgroundLoading, load]);
 
+  // Intersection observer for infinite scroll
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
