@@ -2,7 +2,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install || yarn install || pnpm i --no-frozen-lockfile
+RUN npm ci
 COPY . .
 RUN npx prisma migrate deploy && npm run build
 
