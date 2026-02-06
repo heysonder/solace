@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install || yarn install || pnpm i --no-frozen-lockfile
 COPY . .
-RUN npm run build
+RUN npx prisma migrate deploy && npm run build
 
 # --- Run ---
 FROM node:20-alpine AS run
@@ -15,5 +15,6 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
 COPY --from=build /app/next.config.js ./next.config.js
+COPY --from=build /app/prisma ./prisma
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+CMD ["sh", "-c", "npx next start -p ${PORT:-3000}"]
