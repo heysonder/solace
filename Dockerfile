@@ -1,7 +1,9 @@
 # --- Build ---
 FROM node:20-alpine AS build
+RUN apk add --no-cache openssl
 WORKDIR /app
 COPY package.json package-lock.json* ./
+COPY prisma ./prisma
 RUN npm ci
 COPY . .
 RUN npx prisma migrate deploy && npm run build
