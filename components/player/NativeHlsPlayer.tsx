@@ -5,6 +5,7 @@ import Hls from 'hls.js';
 import { usePreferNativeHLS } from '@/hooks/usePlatform';
 import { initHlsPlayer, destroyHlsPlayer, getQualityLevels, setQualityLevel, type QualityLevel } from '@/lib/video/hlsPlayer';
 import QualitySelector from './QualitySelector';
+import VideoControls from './VideoControls';
 
 interface NativeHlsPlayerProps {
   channel: string;
@@ -54,9 +55,7 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
           el.addEventListener('error', () => {
             if (!cancelled) onFallback();
           }, { once: true });
-          el.play().catch(() => {
-            // Autoplay blocked — user can click to play
-          });
+          el.play().catch(() => {});
         } else if (Hls.isSupported()) {
           // hls.js for Chrome/Firefox/Edge
           const hls = initHlsPlayer(el, m3u8Url, () => {
@@ -75,7 +74,6 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
             if (!cancelled) setCurrentQuality(data.level);
           });
         } else {
-          // No HLS support
           onFallback();
         }
       } catch (err) {
@@ -100,25 +98,35 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
   }, [channel, preferNative, onFallback]);
 
   return (
-    <div className={`absolute inset-0 flex items-center justify-center ${className ?? ''}`}>
+    <div className={className} data-player-root style={{ position: 'absolute', inset: 0 }}>
       <video
         ref={videoRef}
-        className="w-full h-full"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'contain',
+          backgroundColor: 'black',
+        }}
         playsInline
         autoPlay
-        controls
       />
+      <VideoControls videoRef={videoRef} />
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
           <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin" />
         </div>
       )}
       {qualities.length > 0 && (
-        <QualitySelector
-          levels={qualities}
-          currentIndex={currentQuality}
-          onSelect={handleQualityChange}
-        />
+        <div className="z-20">
+          <QualitySelector
+            levels={qualities}
+            currentIndex={currentQuality}
+            onSelect={handleQualityChange}
+          />
+        </div>
       )}
     </div>
   );
