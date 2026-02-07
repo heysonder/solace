@@ -9,11 +9,32 @@ export interface PlaybackData {
 }
 
 /**
+ * Try to get the logged-in user's Twitch OAuth token for ad-free subscriber playback.
+ * Returns undefined if not authenticated.
+ */
+async function getUserAccessToken(): Promise<string | undefined> {
+  try {
+    const res = await fetch('/api/auth/chat-token');
+    if (!res.ok) return undefined;
+    const { oauth } = await res.json();
+    // chat-token returns "oauth:TOKEN", strip the prefix
+    return oauth?.replace('oauth:', '') || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Fetch a playback access token directly from Twitch GQL (client-side).
  * This runs in the browser so Twitch doesn't block it like it does
  * for requests from cloud provider IPs (Vercel/AWS).
+ *
+ * If the user is logged in, their OAuth token is included so Twitch
+ * recognizes subscriptions and skips ads.
  */
 export async function fetchPlaybackToken(channel: string): Promise<PlaybackData> {
+  const userToken = await getUserAccessToken();
+
   const body = JSON.stringify({
     operationName: 'PlaybackAccessToken',
     extensions: {
@@ -31,12 +52,18 @@ export async function fetchPlaybackToken(channel: string): Promise<PlaybackData>
     },
   });
 
+  const headers: Record<string, string> = {
+    'Client-ID': TWITCH_PUBLIC_CLIENT_ID,
+    'Content-Type': 'application/json',
+  };
+
+  if (userToken) {
+    headers['Authorization'] = `OAuth ${userToken}`;
+  }
+
   const res = await fetch(TWITCH_GQL_URL, {
     method: 'POST',
-    headers: {
-      'Client-ID': TWITCH_PUBLIC_CLIENT_ID,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body,
   });
 
