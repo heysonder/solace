@@ -100,10 +100,10 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
   }, [channel, preferNative, onFallback]);
 
   return (
-    <div className={`absolute inset-0 ${className ?? ''}`}>
+    <div className={`absolute inset-0 flex items-center justify-center ${className ?? ''}`}>
       <video
         ref={videoRef}
-        className="absolute inset-0 w-full h-full object-contain"
+        className="w-full h-full"
         playsInline
         autoPlay
         controls
