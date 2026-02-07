@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ensureValidTwitchTokens, applyCookieDescriptors } from '@/lib/auth/twitchTokens';
 
 const TWITCH_GQL_URL = 'https://gql.twitch.tv/gql';
 const TWITCH_PUBLIC_CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
 const PLAYBACK_TOKEN_SHA256 = '0828119ded1c13477966434e15800ff57ddacf13ba1911c129dc2200705b0712';
 
-// In-memory cache with 30s TTL
+// In-memory cache with 30s TTL, keyed by "channel" or "channel:userId"
 const cache = new Map<string, { data: PlaybackData; expiresAt: number }>();
 const CACHE_TTL = 30_000;
 
@@ -14,14 +15,14 @@ interface PlaybackData {
   signature: string;
 }
 
-function getCached(channel: string): PlaybackData | null {
-  const entry = cache.get(channel);
+function getCached(key: string): PlaybackData | null {
+  const entry = cache.get(key);
   if (entry && Date.now() < entry.expiresAt) return entry.data;
-  if (entry) cache.delete(channel);
+  if (entry) cache.delete(key);
   return null;
 }
 
-async function fetchPlaybackToken(channel: string): Promise<PlaybackData> {
+async function fetchPlaybackToken(channel: string, userAccessToken?: string): Promise<PlaybackData> {
   const body = JSON.stringify({
     operationName: 'PlaybackAccessToken',
     extensions: {
@@ -39,12 +40,20 @@ async function fetchPlaybackToken(channel: string): Promise<PlaybackData> {
     },
   });
 
+  const headers: Record<string, string> = {
+    'Client-ID': TWITCH_PUBLIC_CLIENT_ID,
+    'Content-Type': 'application/json',
+  };
+
+  // If user is authenticated, pass their OAuth token so Twitch
+  // recognizes subscriptions and provides ad-free playback
+  if (userAccessToken) {
+    headers['Authorization'] = `OAuth ${userAccessToken}`;
+  }
+
   const res = await fetch(TWITCH_GQL_URL, {
     method: 'POST',
-    headers: {
-      'Client-ID': TWITCH_PUBLIC_CLIENT_ID,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body,
   });
 
@@ -90,15 +99,29 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid channel name' }, { status: 400 });
   }
 
-  const cached = getCached(channel.toLowerCase());
+  const channelLower = channel.toLowerCase();
+
+  // Try to get the user's auth token for subscriber ad-free playback
+  const { tokens, cookies } = await ensureValidTwitchTokens(request);
+  const userAccessToken = tokens?.access_token;
+  const userId = tokens?.user_id;
+
+  // Cache key includes userId so authenticated and anonymous requests don't mix
+  const cacheKey = userId ? `${channelLower}:${userId}` : channelLower;
+
+  const cached = getCached(cacheKey);
   if (cached) {
-    return NextResponse.json(cached);
+    const response = NextResponse.json(cached);
+    if (cookies) applyCookieDescriptors(response, cookies);
+    return response;
   }
 
   try {
-    const data = await fetchPlaybackToken(channel.toLowerCase());
-    cache.set(channel.toLowerCase(), { data, expiresAt: Date.now() + CACHE_TTL });
-    return NextResponse.json(data);
+    const data = await fetchPlaybackToken(channelLower, userAccessToken);
+    cache.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL });
+    const response = NextResponse.json(data);
+    if (cookies) applyCookieDescriptors(response, cookies);
+    return response;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch playback token';
     return NextResponse.json({ error: message }, { status: 502 });
