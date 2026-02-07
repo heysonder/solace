@@ -32,9 +32,7 @@ async function getUserAccessToken(): Promise<string | undefined> {
  * If the user is logged in, their OAuth token is included so Twitch
  * recognizes subscriptions and skips ads.
  */
-export async function fetchPlaybackToken(channel: string): Promise<PlaybackData> {
-  const userToken = await getUserAccessToken();
-
+async function gqlPlaybackRequest(channel: string, authToken?: string): Promise<Response> {
   const body = JSON.stringify({
     operationName: 'PlaybackAccessToken',
     extensions: {
@@ -57,15 +55,27 @@ export async function fetchPlaybackToken(channel: string): Promise<PlaybackData>
     'Content-Type': 'application/json',
   };
 
-  if (userToken) {
-    headers['Authorization'] = `OAuth ${userToken}`;
+  if (authToken) {
+    headers['Authorization'] = `OAuth ${authToken}`;
   }
 
-  const res = await fetch(TWITCH_GQL_URL, {
-    method: 'POST',
-    headers,
-    body,
-  });
+  return fetch(TWITCH_GQL_URL, { method: 'POST', headers, body });
+}
+
+export async function fetchPlaybackToken(channel: string): Promise<PlaybackData> {
+  const userToken = await getUserAccessToken();
+
+  // Try authenticated first, fall back to anonymous if 401
+  let res: Response;
+  if (userToken) {
+    res = await gqlPlaybackRequest(channel, userToken);
+    if (!res.ok) {
+      console.warn('[twitchPlayback] Authenticated GQL failed, retrying anonymously');
+      res = await gqlPlaybackRequest(channel);
+    }
+  } else {
+    res = await gqlPlaybackRequest(channel);
+  }
 
   if (!res.ok) {
     throw new Error(`GQL request failed: ${res.status}`);
