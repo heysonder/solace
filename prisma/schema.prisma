@@ -35,13 +35,11 @@ model Favorite {
 model Preferences {
   id                  String   @id @default(cuid())
   userId              String   @unique
-  proxySelection      String   @default("auto")
   chatFontSize        String   @default("medium")
   showTimestamps      Boolean  @default(false)
   bttvEmotesEnabled   Boolean  @default(true)
   ffzEmotesEnabled    Boolean  @default(true)
   seventvEmotesEnabled Boolean @default(true)
-  disableNativePlayer Boolean  @default(false)
   updatedAt           DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

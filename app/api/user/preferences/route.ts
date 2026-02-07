@@ -38,13 +38,11 @@ export async function POST(request: NextRequest) {
 
     // Partial update
     const validKeys = [
-      'proxySelection',
       'chatFontSize',
       'showTimestamps',
       'bttvEmotesEnabled',
       'ffzEmotesEnabled',
       'seventvEmotesEnabled',
-      'disableNativePlayer',
     ];
 
     const updates: Record<string, unknown> = {};

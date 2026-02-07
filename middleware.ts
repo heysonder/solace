@@ -87,7 +87,7 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https: blob:",
     "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' https://api.twitch.tv https://gql.twitch.tv https://id.twitch.tv https://static-cdn.jtvnw.net https://vitals.vercel-insights.com wss://irc-ws.chat.twitch.tv https://api.betterttv.net https://api.frankerfacez.com https://7tv.io https://cdn.7tv.app https://clipr.xyz https://*.luminous.dev https://*.cdn-perfprod.com https://twitch.nadeko.net",
+    "connect-src 'self' https://api.twitch.tv https://gql.twitch.tv https://id.twitch.tv https://static-cdn.jtvnw.net https://vitals.vercel-insights.com wss://irc-ws.chat.twitch.tv https://api.betterttv.net https://api.frankerfacez.com https://7tv.io https://cdn.7tv.app https://clipr.xyz",
     "frame-src https://embed.twitch.tv https://player.twitch.tv https://vercel.live",
     "frame-ancestors 'self'", // Prevent clickjacking
     "media-src 'self' https: blob:",
@@ -100,11 +100,6 @@ export function middleware(request: NextRequest) {
 
   // SECURITY: Rate limiting for API routes
   if (request.nextUrl.pathname.startsWith('/api/')) {
-    // HLS proxy traffic is extremely chatty; don't rate limit media delivery or manifests
-    if (request.nextUrl.pathname.startsWith('/api/hls')) {
-      return response;
-    }
-
     const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
 
     // Higher limits for auth endpoints, lower for others

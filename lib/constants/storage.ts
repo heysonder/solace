@@ -4,10 +4,6 @@
  */
 
 export const STORAGE_KEYS = {
-  // Proxy and player settings
-  PROXY_SELECTION: 'proxy_selection',
-  DISABLE_NATIVE_PLAYER: 'disable_native_player',
-
   // Chat settings
   CHAT_SHOW_BADGES: 'chat_show_badges',
 

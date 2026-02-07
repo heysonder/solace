@@ -3,7 +3,7 @@ let twitchSDK: any = null;
 let loadAttempts = 0;
 const MAX_ATTEMPTS = 3;
 
-// Enhanced SDK loading with proxy support
+// SDK loading
 export async function loadTwitchSDK(): Promise<any> {
   if (typeof window === "undefined") {
     throw new Error("Twitch SDK can only be loaded in browser environment");
@@ -47,12 +47,10 @@ export async function loadTwitchSDK(): Promise<any> {
     return await twitchSDKPromise;
   }
 
-  // Start loading the SDK via proxy
+  // Start loading the SDK
   twitchSDKPromise = new Promise<any>((resolve, reject) => {
     const script = document.createElement("script");
-    // Use proxy instead of direct Twitch URL
-    const proxyUrl = `/api/proxy?url=${encodeURIComponent('https://embed.twitch.tv/embed/v1.js')}`;
-    script.src = proxyUrl;
+    script.src = 'https://embed.twitch.tv/embed/v1.js';
     script.async = true;
     script.id = "twitch-embed-script";
     
@@ -74,7 +72,7 @@ export async function loadTwitchSDK(): Promise<any> {
       const checkSDK = (attempts = 0) => {
         if ((window as any).Twitch) {
           twitchSDK = (window as any).Twitch;
-          console.log("Twitch SDK loaded successfully via proxy");
+          console.log("Twitch SDK loaded successfully");
           resolve(twitchSDK);
         } else if (attempts < 10) {
           // Retry checking for SDK up to 10 times with 100ms intervals
@@ -94,7 +92,7 @@ export async function loadTwitchSDK(): Promise<any> {
       isResolved = true;
       cleanup();
       
-      const error = new Error(`Failed to load Twitch SDK via proxy: ${event.type}`);
+      const error = new Error(`Failed to load Twitch SDK: ${event.type}`);
       console.error(error);
       reject(error);
     };

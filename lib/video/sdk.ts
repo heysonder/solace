@@ -21,7 +21,7 @@ export async function loadTwitchSDKReliable(): Promise<any> {
   // Create promise ONCE
   sdkPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = '/api/dev-proxy?url=' + encodeURIComponent('https://embed.twitch.tv/embed/v1.js');
+    script.src = 'https://embed.twitch.tv/embed/v1.js';
     script.id = 'twitch-sdk-dev';
 
     let isSettled = false;

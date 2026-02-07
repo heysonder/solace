@@ -1,5 +1,4 @@
 import { Metadata } from 'next';
-import DevWatchPlayer from '@/components/dev/DevWatchPlayer';
 import { notFound } from 'next/navigation';
 
 interface DevWatchProps {
@@ -90,10 +89,20 @@ function DevWatchContent({ channel, hlsSrc }: { channel: string; hlsSrc: string 
 }
 
 function HlsPlayerWithAnalytics({ hlsSrc }: { hlsSrc: string }) {
+  const iframeSrc = `https://player.twitch.tv/?channel=dev&parent=localhost&muted=true&autoplay=false`;
+
   return (
     <div className="space-y-4">
-      <DevWatchPlayer channel="dev" parent="localhost" />
-      
+      <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
+        <iframe
+          src={iframeSrc}
+          className="w-full h-full"
+          allow="autoplay; fullscreen"
+          allowFullScreen
+          title="Dev Twitch Stream"
+        />
+      </div>
+
       <HlsAnalyticsSummary hlsSrc={hlsSrc} />
     </div>
   );

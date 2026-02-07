@@ -1,23 +1,19 @@
 import { prisma } from './prisma';
 
 export interface UserPreferences {
-  proxySelection: string;
   chatFontSize: string;
   showTimestamps: boolean;
   bttvEmotesEnabled: boolean;
   ffzEmotesEnabled: boolean;
   seventvEmotesEnabled: boolean;
-  disableNativePlayer: boolean;
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
-  proxySelection: 'auto',
   chatFontSize: 'medium',
   showTimestamps: false,
   bttvEmotesEnabled: true,
   ffzEmotesEnabled: true,
   seventvEmotesEnabled: true,
-  disableNativePlayer: false,
 };
 
 export async function getPreferences(userId: string): Promise<UserPreferences> {
@@ -30,13 +26,11 @@ export async function getPreferences(userId: string): Promise<UserPreferences> {
   }
 
   return {
-    proxySelection: prefs.proxySelection,
     chatFontSize: prefs.chatFontSize,
     showTimestamps: prefs.showTimestamps,
     bttvEmotesEnabled: prefs.bttvEmotesEnabled,
     ffzEmotesEnabled: prefs.ffzEmotesEnabled,
     seventvEmotesEnabled: prefs.seventvEmotesEnabled,
-    disableNativePlayer: prefs.disableNativePlayer,
   };
 }
 

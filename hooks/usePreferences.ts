@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
 interface UserPreferences {
-  proxySelection?: string;
   chatFontSize?: number;
   showTimestamps?: boolean;
 }
