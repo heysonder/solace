@@ -102,9 +102,18 @@ export async function GET(request: NextRequest) {
   const channelLower = channel.toLowerCase();
 
   // Try to get the user's auth token for subscriber ad-free playback
-  const { tokens, cookies } = await ensureValidTwitchTokens(request);
-  const userAccessToken = tokens?.access_token;
-  const userId = tokens?.user_id;
+  // Wrapped in try-catch so auth failures don't break anonymous playback
+  let userAccessToken: string | undefined;
+  let userId: string | undefined;
+  let authCookies: Parameters<typeof applyCookieDescriptors>[1];
+  try {
+    const { tokens, cookies } = await ensureValidTwitchTokens(request);
+    userAccessToken = tokens?.access_token;
+    userId = tokens?.user_id;
+    authCookies = cookies;
+  } catch {
+    // Auth failed — continue with anonymous playback
+  }
 
   // Cache key includes userId so authenticated and anonymous requests don't mix
   const cacheKey = userId ? `${channelLower}:${userId}` : channelLower;
@@ -112,7 +121,7 @@ export async function GET(request: NextRequest) {
   const cached = getCached(cacheKey);
   if (cached) {
     const response = NextResponse.json(cached);
-    if (cookies) applyCookieDescriptors(response, cookies);
+    if (authCookies) applyCookieDescriptors(response, authCookies);
     return response;
   }
 
@@ -120,7 +129,7 @@ export async function GET(request: NextRequest) {
     const data = await fetchPlaybackToken(channelLower, userAccessToken);
     cache.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL });
     const response = NextResponse.json(data);
-    if (cookies) applyCookieDescriptors(response, cookies);
+    if (authCookies) applyCookieDescriptors(response, authCookies);
     return response;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch playback token';
