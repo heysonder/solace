@@ -62,11 +62,18 @@ export default function StreamStatus({ channel }: StreamStatusProps) {
   }
 
   const isLive = streamData?.liveStream !== null;
+  const viewers = streamData?.liveStream?.viewer_count;
+
+  function formatViewers(count: number): string {
+    if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+    if (count >= 1_000) return `${(count / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+    return String(count);
+  }
 
   return (
     <div className="hidden md:flex items-center gap-2 text-sm text-text-muted mt-1">
       <div className={`h-2 w-2 rounded-full ${isLive ? 'bg-red-500 animate-pulse' : 'bg-gray-500'}`}></div>
-      <span>{isLive ? 'live' : 'offline'}</span>
+      <span>{isLive ? `live${viewers != null ? ` \u00b7 ${formatViewers(viewers)}` : ''}` : 'offline'}</span>
     </div>
   );
 }
