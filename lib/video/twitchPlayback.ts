@@ -9,30 +9,15 @@ export interface PlaybackData {
 }
 
 /**
- * Try to get the logged-in user's Twitch OAuth token for ad-free subscriber playback.
- * Returns undefined if not authenticated.
- */
-async function getUserAccessToken(): Promise<string | undefined> {
-  try {
-    const res = await fetch('/api/auth/chat-token');
-    if (!res.ok) return undefined;
-    const { oauth } = await res.json();
-    // chat-token returns "oauth:TOKEN", strip the prefix
-    return oauth?.replace('oauth:', '') || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
  * Fetch a playback access token directly from Twitch GQL (client-side).
  * This runs in the browser so Twitch doesn't block it like it does
  * for requests from cloud provider IPs (Vercel/AWS).
  *
- * If the user is logged in, their OAuth token is included so Twitch
- * recognizes subscriptions and skips ads.
+ * Note: User OAuth tokens can't be used here — they're issued under
+ * our app's Client-ID, not Twitch's public web Client-ID, so Twitch
+ * returns 401. Ad-free subscriber playback is handled by the iframe fallback.
  */
-async function gqlPlaybackRequest(channel: string, authToken?: string): Promise<Response> {
+export async function fetchPlaybackToken(channel: string): Promise<PlaybackData> {
   const body = JSON.stringify({
     operationName: 'PlaybackAccessToken',
     extensions: {
@@ -50,32 +35,14 @@ async function gqlPlaybackRequest(channel: string, authToken?: string): Promise<
     },
   });
 
-  const headers: Record<string, string> = {
-    'Client-ID': TWITCH_PUBLIC_CLIENT_ID,
-    'Content-Type': 'application/json',
-  };
-
-  if (authToken) {
-    headers['Authorization'] = `OAuth ${authToken}`;
-  }
-
-  return fetch(TWITCH_GQL_URL, { method: 'POST', headers, body });
-}
-
-export async function fetchPlaybackToken(channel: string): Promise<PlaybackData> {
-  const userToken = await getUserAccessToken();
-
-  // Try authenticated first, fall back to anonymous if 401
-  let res: Response;
-  if (userToken) {
-    res = await gqlPlaybackRequest(channel, userToken);
-    if (!res.ok) {
-      console.warn('[twitchPlayback] Authenticated GQL failed, retrying anonymously');
-      res = await gqlPlaybackRequest(channel);
-    }
-  } else {
-    res = await gqlPlaybackRequest(channel);
-  }
+  const res = await fetch(TWITCH_GQL_URL, {
+    method: 'POST',
+    headers: {
+      'Client-ID': TWITCH_PUBLIC_CLIENT_ID,
+      'Content-Type': 'application/json',
+    },
+    body,
+  });
 
   if (!res.ok) {
     throw new Error(`GQL request failed: ${res.status}`);
