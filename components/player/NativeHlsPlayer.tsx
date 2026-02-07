@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import { usePreferNativeHLS } from '@/hooks/usePlatform';
 import { initHlsPlayer, destroyHlsPlayer, getQualityLevels, setQualityLevel, type QualityLevel } from '@/lib/video/hlsPlayer';
+import { fetchPlaybackToken } from '@/lib/video/twitchPlayback';
 import QualitySelector from './QualitySelector';
 import VideoControls from './VideoControls';
 
@@ -38,12 +39,9 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
       if (!el) return;
 
       try {
-        const res = await fetch(`/api/twitch/playback?channel=${encodeURIComponent(channel)}`);
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `API returned ${res.status}`);
-        }
-        const { m3u8Url } = await res.json();
+        // Fetch playback token directly from Twitch GQL (client-side)
+        // Server-side API route gets blocked by Twitch on cloud provider IPs
+        const { m3u8Url } = await fetchPlaybackToken(channel);
         if (cancelled) return;
 
         if (preferNative && el.canPlayType('application/vnd.apple.mpegurl')) {

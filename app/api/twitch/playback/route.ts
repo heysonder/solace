@@ -126,7 +126,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const data = await fetchPlaybackToken(channelLower, userAccessToken);
+    let data: PlaybackData;
+
+    if (userAccessToken) {
+      try {
+        // Try authenticated request first (ad-free for subscribers)
+        data = await fetchPlaybackToken(channelLower, userAccessToken);
+      } catch {
+        // Auth token rejected — retry anonymously
+        console.warn('[playback] Authenticated request failed, retrying anonymously');
+        data = await fetchPlaybackToken(channelLower);
+      }
+    } else {
+      data = await fetchPlaybackToken(channelLower);
+    }
+
     cache.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL });
     const response = NextResponse.json(data);
     if (authCookies) applyCookieDescriptors(response, authCookies);
