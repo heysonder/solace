@@ -21,6 +21,7 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
   const [qualities, setQualities] = useState<QualityLevel[]>([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [streamTitle, setStreamTitle] = useState('');
+  const [gameName, setGameName] = useState('');
   const preferNative = usePreferNativeHLS();
 
   useEffect(() => {
@@ -28,8 +29,9 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
     fetch(`/api/channel/${encodeURIComponent(channel)}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (!cancelled && data?.liveStream?.title) {
-          setStreamTitle(data.liveStream.title);
+        if (!cancelled && data?.liveStream) {
+          if (data.liveStream.title) setStreamTitle(data.liveStream.title);
+          if (data.liveStream.game_name) setGameName(data.liveStream.game_name);
         }
       })
       .catch(() => {});
@@ -125,7 +127,7 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
         playsInline
         autoPlay
       />
-      <VideoControls videoRef={videoRef} channel={channel} streamTitle={streamTitle} />
+      <VideoControls videoRef={videoRef} streamTitle={streamTitle} gameName={gameName} />
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
           <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin" />
