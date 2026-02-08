@@ -1,4 +1,5 @@
 import Hls, { type HlsConfig, type Level } from 'hls.js';
+import { createAdFilterLoader } from './adFilter';
 
 export interface QualityLevel {
   index: number;
@@ -16,6 +17,7 @@ const HLS_CONFIG: Partial<HlsConfig> = {
   liveMaxLatencyDurationCount: 6,
   enableWorker: true,
   progressive: true,
+  loader: createAdFilterLoader(),
 };
 
 export function initHlsPlayer(

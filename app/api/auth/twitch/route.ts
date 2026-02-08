@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
   const scopes = [
     'chat:read',
     'chat:edit',
-    'user:read:email'
+    'user:read:email',
+    'user:read:subscriptions'
   ];
 
   // In production, require NEXT_PUBLIC_SITE_URL to prevent header injection
