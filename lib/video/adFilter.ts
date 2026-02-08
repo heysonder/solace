@@ -7,7 +7,7 @@
  *
  * This module provides:
  * 1. A function to strip ad segments from raw M3U8 playlist text
- * 2. A custom hls.js playlist loader class that intercepts and filters responses
+ * 2. A custom hls.js loader that proxies requests and filters ad segments
  */
 
 import Hls from 'hls.js';
@@ -98,20 +98,50 @@ export function hasAdSegments(playlistText: string): boolean {
 }
 
 /**
- * Custom hls.js loader that intercepts playlist responses and strips ad segments.
- * Use this as the `pLoader` (playlist loader) in hls.js config.
+ * Wrap a URL through the /api/proxy endpoint to bypass CORS.
+ */
+function proxyUrl(url: string): string {
+  return `/api/proxy?url=${encodeURIComponent(url)}`;
+}
+
+/**
+ * Rewrite absolute URLs inside an M3U8 playlist to go through the proxy.
+ * This ensures variant playlists and segment URLs are also proxied.
+ */
+function rewritePlaylistUrls(playlistText: string): string {
+  return playlistText.replace(/^(https?:\/\/.+)$/gm, (match) => {
+    return proxyUrl(match);
+  });
+}
+
+/**
+ * Custom hls.js loader that:
+ * 1. Routes all requests through /api/proxy to bypass CORS
+ * 2. Rewrites URLs inside M3U8 playlists so sub-requests also go through the proxy
+ * 3. Strips ad segments from media playlists
  */
 export function createAdFilterLoader(): typeof Hls.DefaultConfig.loader {
   const DefaultLoader = Hls.DefaultConfig.loader;
 
-  class AdFilterLoader extends (DefaultLoader as any) {
-      load(context: any, config: any, callbacks: any): void {
+  class AdFilterProxyLoader extends (DefaultLoader as any) {
+    load(context: any, config: any, callbacks: any): void {
+      // Route through proxy if URL points to Twitch CDN (CORS-blocked)
+      const url: string = context.url;
+      if (url.includes('ttvnw.net') || url.includes('twitch.tv')) {
+        context.url = proxyUrl(url);
+      }
+
       const originalOnSuccess = callbacks.onSuccess;
 
       callbacks.onSuccess = (response: any, stats: any, ctx: any, networkDetails: any) => {
-        // Only filter media playlists (not master playlists)
-        if (typeof response.data === 'string' && response.data.includes('#EXTINF:')) {
-          if (hasAdSegments(response.data)) {
+        if (typeof response.data === 'string') {
+          // Rewrite URLs in playlists so sub-requests go through proxy
+          if (response.data.includes('#EXTM3U')) {
+            response.data = rewritePlaylistUrls(response.data);
+          }
+
+          // Strip ad segments from media playlists
+          if (response.data.includes('#EXTINF:') && hasAdSegments(response.data)) {
             console.log('[AdFilter] Stripping ad segments from playlist');
             response.data = stripAdSegments(response.data);
           }
@@ -123,5 +153,5 @@ export function createAdFilterLoader(): typeof Hls.DefaultConfig.loader {
     }
   }
 
-  return AdFilterLoader as unknown as typeof Hls.DefaultConfig.loader;
+  return AdFilterProxyLoader as unknown as typeof Hls.DefaultConfig.loader;
 }

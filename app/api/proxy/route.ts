@@ -35,11 +35,13 @@ function getAllowedOrigin(request: NextRequest): string | null {
 // SECURITY: Allowlist of permitted domains to prevent SSRF attacks
 const ALLOWED_DOMAINS = [
   'api.twitch.tv',
-  'gql.twitch.tv', 
+  'gql.twitch.tv',
   'static-cdn.jtvnw.net',
   'player.twitch.tv',
   'embed.twitch.tv',
-  'id.twitch.tv'
+  'id.twitch.tv',
+  'usher.ttvnw.net',
+  'ttvnw.net',
 ];
 
 function validateUrl(urlString: string): boolean {
@@ -116,12 +118,16 @@ export async function GET(request: NextRequest) {
       corsHeaders['Access-Control-Allow-Origin'] = allowedOrigin;
     }
 
+    // Don't cache live HLS playlists — they change every few seconds
+    const isHls = target.includes('.m3u8') || contentType?.includes('mpegurl');
+    const cacheControl = isHls ? 'no-cache, no-store' : 'public, max-age=3600';
+
     return new NextResponse(content, {
       status: 200,
       headers: {
         'Content-Type': contentType || 'text/plain',
         ...corsHeaders,
-        'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+        'Cache-Control': cacheControl,
       },
     });
   } catch (error) {
