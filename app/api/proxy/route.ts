@@ -91,7 +91,14 @@ export async function GET(request: NextRequest) {
 
   // SECURITY: Validate URL before making request
   if (!validateUrl(target)) {
-    return NextResponse.json({ error: 'Invalid or unauthorized URL' }, { status: 403 });
+    console.error('[proxy] Blocked URL:', target);
+    try {
+      const parsed = new URL(target);
+      console.error('[proxy] Hostname:', parsed.hostname, 'Protocol:', parsed.protocol);
+    } catch {
+      console.error('[proxy] Could not parse URL');
+    }
+    return NextResponse.json({ error: 'Invalid or unauthorized URL', blocked: target }, { status: 403 });
   }
 
   try {
