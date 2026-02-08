@@ -12,6 +12,9 @@ export const STORAGE_KEYS = {
   EMOTES_FFZ: 'emotes_ffz',
   EMOTES_7TV: 'emotes_7tv',
 
+  // Player settings
+  PLAYER_NATIVE_HLS: 'player_native_hls',
+
   // Theme settings
   THEME: 'theme',
 

@@ -86,9 +86,26 @@ export function useIsSafari() {
 }
 
 /**
- * Hook to check if native HLS should be preferred
+ * Hook to check if native HLS should be preferred.
+ * Respects the user's setting in localStorage — when disabled,
+ * forces hls.js even on Safari (enables ad filtering).
  */
 export function usePreferNativeHLS() {
   const { media } = usePlatform();
-  return media.preferNativeHLS;
+  const [userPref, setUserPref] = useState(true);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('player_native_hls');
+    if (saved === 'false') setUserPref(false);
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'player_native_hls') {
+        setUserPref(e.newValue !== 'false');
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  return media.preferNativeHLS && userPref;
 }

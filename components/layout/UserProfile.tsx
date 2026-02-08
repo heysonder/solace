@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { User, Settings, LogOut, Sun, Moon } from "lucide-react";
+import { User, Settings, LogOut, Sun, Moon, Play } from "lucide-react";
 import { STORAGE_KEYS } from "@/lib/constants/storage";
 
 interface UserProfileProps {
@@ -16,6 +16,7 @@ function UserProfileDropdown({ user, onLogout }: { user: any; onLogout: () => vo
   const [bttvEnabled, setBttvEnabled] = useState(true);
   const [ffzEnabled, setFfzEnabled] = useState(true);
   const [seventvEnabled, setSeventvEnabled] = useState(true);
+  const [nativeHls, setNativeHls] = useState(true);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; right: number } | null>(null);
   const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -32,11 +33,13 @@ function UserProfileDropdown({ user, onLogout }: { user: any; onLogout: () => vo
     const savedBttv = localStorage.getItem(STORAGE_KEYS.EMOTES_BTTV);
     const savedFfz = localStorage.getItem(STORAGE_KEYS.EMOTES_FFZ);
     const savedSeventv = localStorage.getItem(STORAGE_KEYS.EMOTES_7TV);
+    const savedNativeHls = localStorage.getItem(STORAGE_KEYS.PLAYER_NATIVE_HLS);
     setShowBadges(savedShowBadges !== 'false');
     setIsDarkMode(savedTheme !== 'light');
     setBttvEnabled(savedBttv !== 'false');
     setFfzEnabled(savedFfz !== 'false');
     setSeventvEnabled(savedSeventv !== 'false');
+    setNativeHls(savedNativeHls !== 'false');
   }, []);
 
   useEffect(() => {
@@ -106,6 +109,17 @@ function UserProfileDropdown({ user, onLogout }: { user: any; onLogout: () => vo
 
     window.dispatchEvent(new StorageEvent('storage', {
       key: STORAGE_KEYS.EMOTES_7TV,
+      newValue: newEnabled.toString(),
+    }));
+  };
+
+  const toggleNativeHls = () => {
+    const newEnabled = !nativeHls;
+    setNativeHls(newEnabled);
+    localStorage.setItem(STORAGE_KEYS.PLAYER_NATIVE_HLS, newEnabled.toString());
+
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: STORAGE_KEYS.PLAYER_NATIVE_HLS,
       newValue: newEnabled.toString(),
     }));
   };
@@ -204,6 +218,28 @@ function UserProfileDropdown({ user, onLogout }: { user: any; onLogout: () => vo
               </span>
               <div className={`w-4 h-4 rounded border ${showBadges ? 'bg-purple-600 border-purple-600' : 'border-white/30'} flex items-center justify-center`}>
                 {showBadges && (
+                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+            </button>
+
+            {/* Player Settings */}
+            <div className="px-3 py-1 text-xs text-text-muted font-medium border-b border-white/5">
+              Player
+            </div>
+
+            <button
+              onClick={toggleNativeHls}
+              className="w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5 flex items-center justify-between"
+            >
+              <span className="flex items-center gap-2">
+                <Play className="w-4 h-4" />
+                Native Safari Player
+              </span>
+              <div className={`w-4 h-4 rounded border ${nativeHls ? 'bg-purple-600 border-purple-600' : 'border-white/30'} flex items-center justify-center`}>
+                {nativeHls && (
                   <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
