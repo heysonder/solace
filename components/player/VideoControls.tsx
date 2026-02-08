@@ -5,9 +5,11 @@ import { Play, Pause, Volume2, VolumeX, Maximize, Minimize } from 'lucide-react'
 
 interface VideoControlsProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  channel?: string;
+  streamTitle?: string;
 }
 
-export default function VideoControls({ videoRef }: VideoControlsProps) {
+export default function VideoControls({ videoRef, channel, streamTitle }: VideoControlsProps) {
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -74,6 +76,22 @@ export default function VideoControls({ videoRef }: VideoControlsProps) {
         if (e.target === e.currentTarget) togglePlay();
       }}
     >
+      {/* Top title bar */}
+      {(channel || streamTitle) && (
+        <div
+          className={`absolute top-0 left-0 right-0 px-4 py-3 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300 ${
+            visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          {channel && (
+            <p className="text-white font-semibold text-sm">{channel}</p>
+          )}
+          {streamTitle && (
+            <p className="text-white/70 text-xs truncate mt-0.5">{streamTitle}</p>
+          )}
+        </div>
+      )}
+
       {/* Bottom controls bar */}
       <div
         className={`absolute bottom-0 left-0 right-0 px-4 py-3 bg-gradient-to-t from-black/80 to-transparent transition-opacity duration-300 ${
