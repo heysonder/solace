@@ -34,16 +34,12 @@ function getAllowedOrigin(request: NextRequest): string | null {
 
 // SECURITY: Allowlist of permitted domains to prevent SSRF attacks
 const ALLOWED_DOMAINS = [
-  'api.twitch.tv',
-  'gql.twitch.tv',
-  'static-cdn.jtvnw.net',
-  'player.twitch.tv',
-  'embed.twitch.tv',
-  'id.twitch.tv',
-  'usher.ttvnw.net',
+  'twitch.tv',
   'ttvnw.net',
   'jtvnw.net',
   'cloudfront.net',
+  'akamaized.net',
+  'akamaihd.net',
 ];
 
 function validateUrl(urlString: string): boolean {

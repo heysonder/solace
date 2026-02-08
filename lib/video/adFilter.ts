@@ -128,7 +128,8 @@ export function createAdFilterLoader(): typeof Hls.DefaultConfig.loader {
       // Route through proxy if URL points to Twitch CDN (CORS-blocked)
       // Only proxy actual external URLs, not already-proxied ones
       const url: string = context.url;
-      if (url.startsWith('https://') && (url.includes('ttvnw.net') || url.includes('twitch.tv'))) {
+      if (url.startsWith('https://')) {
+        console.log('[AdFilter] Proxying:', url.substring(0, 80) + '...');
         context.url = proxyUrl(url);
       }
 
