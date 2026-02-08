@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   const { tokens, cookies } = await ensureValidTwitchTokens(request);
   if (!tokens) {
-    return NextResponse.json({ subscribed: false });
+    return NextResponse.json({ subscribed: false, debug: 'no_tokens' });
   }
 
   const clientId = process.env.TWITCH_CLIENT_ID;
@@ -37,7 +37,11 @@ export async function GET(request: NextRequest) {
     if (!subResponse.ok) {
       const errorBody = await subResponse.text().catch(() => '');
       console.warn(`[subscription] Helix returned ${subResponse.status} for broadcaster=${broadcasterId} user=${tokens.user_id}:`, errorBody);
-      const response = NextResponse.json({ subscribed: false });
+      const response = NextResponse.json({
+        subscribed: false,
+        debug: `helix_${subResponse.status}`,
+        scopes: tokens.scope,
+      });
       applyCookieDescriptors(response, cookies);
       return response;
     }
