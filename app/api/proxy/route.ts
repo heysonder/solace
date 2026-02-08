@@ -42,6 +42,8 @@ const ALLOWED_DOMAINS = [
   'id.twitch.tv',
   'usher.ttvnw.net',
   'ttvnw.net',
+  'jtvnw.net',
+  'cloudfront.net',
 ];
 
 function validateUrl(urlString: string): boolean {
@@ -106,8 +108,7 @@ export async function GET(request: NextRequest) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const contentType = response.headers.get('content-type');
-    const content = await response.text();
+    const contentType = response.headers.get('content-type') || '';
 
     const allowedOrigin = getAllowedOrigin(request);
     const corsHeaders: Record<string, string> = {
@@ -118,18 +119,39 @@ export async function GET(request: NextRequest) {
       corsHeaders['Access-Control-Allow-Origin'] = allowedOrigin;
     }
 
+    // Determine if content is text (playlists) or binary (video segments)
+    const isText = contentType.includes('mpegurl') ||
+      contentType.includes('text/') ||
+      contentType.includes('json') ||
+      contentType.includes('xml') ||
+      target.includes('.m3u8');
+
     // Don't cache live HLS playlists — they change every few seconds
-    const isHls = target.includes('.m3u8') || contentType?.includes('mpegurl');
+    const isHls = target.includes('.m3u8') || contentType.includes('mpegurl');
     const cacheControl = isHls ? 'no-cache, no-store' : 'public, max-age=3600';
 
-    return new NextResponse(content, {
-      status: 200,
-      headers: {
-        'Content-Type': contentType || 'text/plain',
-        ...corsHeaders,
-        'Cache-Control': cacheControl,
-      },
-    });
+    if (isText) {
+      const content = await response.text();
+      return new NextResponse(content, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType || 'text/plain',
+          ...corsHeaders,
+          'Cache-Control': cacheControl,
+        },
+      });
+    } else {
+      // Binary content (video segments, etc.) — pass through as-is
+      const content = await response.arrayBuffer();
+      return new NextResponse(content, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType || 'application/octet-stream',
+          ...corsHeaders,
+          'Cache-Control': cacheControl,
+        },
+      });
+    }
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
       console.error('Proxy error:', error);
