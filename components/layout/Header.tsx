@@ -19,7 +19,7 @@ export default function Header() {
   };
 
   return (
-    <header className="border-b border-white/5 bg-surface/60 backdrop-blur mb-8">
+    <header className="border-b border-white/5 bg-surface/60 backdrop-blur mb-8 pt-[env(safe-area-inset-top)]">
       <div className="mx-auto max-w-7xl px-4 py-3">
         <div className="grid grid-cols-3 items-center gap-4">
           <Link href="/" className="font-semibold tracking-tight text-xl justify-self-start">
@@ -32,7 +32,7 @@ export default function Header() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="go to channel…"
-                className="w-full rounded-xl bg-bg px-3 py-2 text-sm outline-none ring-purple-500/30 focus:ring-2 border border-white/10"
+                className="w-full rounded-xl bg-bg px-3 py-2 text-sm outline-none ring-purple-500/30 focus:ring-2 border border-white/10 focus:border-purple-500/50 focus:shadow-[0_0_12px_rgba(147,51,234,0.15)] transition-all duration-250"
               />
             </form>
           )}
