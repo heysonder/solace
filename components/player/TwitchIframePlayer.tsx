@@ -13,10 +13,9 @@ export default function TwitchIframePlayer({ channel, parent }: TwitchIframePlay
     <iframe
       src={iframeSrc}
       className="w-full h-full"
-      allow="autoplay; fullscreen; picture-in-picture"
-      sandbox="allow-same-origin allow-scripts allow-forms allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation"
+      allow="autoplay; fullscreen; picture-in-picture; encrypted-media; storage-access"
       style={{ visibility: 'visible' }}
-      referrerPolicy="strict-origin-when-cross-origin"
+      referrerPolicy="no-referrer-when-downgrade"
       scrolling="no"
       frameBorder="0"
     />
