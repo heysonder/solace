@@ -46,7 +46,8 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
   }, []);
 
   useEffect(() => {
-    if (!videoRef.current) return;
+    // Wait for platform detection before choosing playback engine
+    if (preferNative === null || !videoRef.current) return;
 
     let cancelled = false;
 
