@@ -16,7 +16,7 @@ type Stream = {
   game_name?: string;
 };
 
-export default function LiveCard({ s }: { s: Stream }) {
+export default function LiveCard({ s, index = 0 }: { s: Stream; index?: number }) {
   const [imageError, setImageError] = useState(false);
   const { isFavorite, toggleFavorite } = useFavorites();
   const thumb = twitchThumb(s.thumbnail_url, 640, 360);
@@ -35,8 +35,8 @@ export default function LiveCard({ s }: { s: Stream }) {
   };
 
   return (
-    <Link href={`/watch/${encodeURIComponent(s.user_login || s.user_name)}`} className="group block">
-      <div className="aspect-video overflow-hidden rounded-xl bg-black/30 relative">
+    <Link href={`/watch/${encodeURIComponent(s.user_login || s.user_name)}`} className={`group block animate-fade-in-up stagger-${Math.min(index + 1, 12)}`}>
+      <div className="aspect-video overflow-hidden rounded-xl bg-black/30 relative transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg group-hover:shadow-black/30">
         {!imageError ? (
           <Image
             src={thumb}

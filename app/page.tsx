@@ -192,9 +192,9 @@ retry
                   favorites
                 </h2>
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {favoriteStreams.map((s) => (
+                  {favoriteStreams.map((s, i) => (
                     <ErrorBoundary key={s.id}>
-                      <LiveCard s={s} />
+                      <LiveCard s={s} index={i} />
                     </ErrorBoundary>
                   ))}
                 </div>
@@ -208,9 +208,9 @@ retry
                   <h2 className="text-lg font-medium text-text mb-4">all streams</h2>
                 )}
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {regularStreams.map((s) => (
+                  {regularStreams.map((s, i) => (
                     <ErrorBoundary key={s.id}>
-                      <LiveCard s={s} />
+                      <LiveCard s={s} index={i} />
                     </ErrorBoundary>
                   ))}
                 </div>
