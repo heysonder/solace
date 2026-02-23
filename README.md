@@ -4,7 +4,6 @@ A modern, feature-rich Twitch streaming platform (frontend) built with Next.js 1
 
 **Live Demo**: [solacestreams.vercel.app](https://solacestreams.vercel.app)
 
-Built with love using Claude Code and vibe coding ✨
 
 ## Table of Contents
 - [Quick Start](#quick-start-local)
@@ -361,18 +360,8 @@ npm start
 
 ### Development Workflow
 
-This project was built using **Claude Code** (Anthropic's CLI coding assistant) with a focus on:
-- Modern React patterns and best practices
-- Clean, maintainable code architecture
-- Comprehensive TypeScript typing
-- Responsive design principles
-- Performance optimization
-
-The development process embraced "vibe coding" - letting creativity and user experience drive feature implementation while maintaining high code quality standards.
-
 ### Code Style
 
-- Follow the conventions in [CLAUDE.md](./CLAUDE.md)
 - Use TypeScript for all new code
 - Follow ESLint rules: `npm run lint`
 - Use Tailwind CSS for styling
@@ -395,12 +384,8 @@ Examples:
 - `docs(readme): update setup instructions`
 
 ### Key Documentation
-- [CLAUDE.md](./CLAUDE.md) - Project conventions and guidelines
 - [DATABASE_SETUP.md](./docs/DATABASE_SETUP.md) - Database setup instructions
-- [IMPROVEMENTS.md](./docs/IMPROVEMENTS.md) - Comprehensive improvement plan and code analysis
-- [AGENTS.md](./docs/AGENTS.md) - Information about AI agents
 - [CHANGES.md](./docs/CHANGES.md) - Changelog
-- [PROJECT_VALUE.md](./docs/PROJECT_VALUE.md) - Project value and vision
 - [devplayer.md](./docs/devplayer.md) - Development player documentation
 
 ### Testing

@@ -4,3 +4,16 @@ node_modules
 tsconfig.tsbuildinfo
 .vercel
 .env*.local
+
+# Logs
+*.log
+firebase-debug.log
+
+# OS
+.DS_Store
+
+# Claude
+CLAUDE_DIARY.md
+
+# Docs (internal)
+docs/IMPROVEMENTS.md
