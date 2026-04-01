@@ -81,11 +81,12 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
   const [channelId, setChannelId] = useState<string>("");
   const [isLive, setIsLive] = useState<boolean | null>(null);
   const [scrollPaused, setScrollPaused] = useState(false);
+  const scrollPausedRef = useRef(false);
   const [showBadges, setShowBadges] = useState(true);
   const [bttvEnabled, setBttvEnabled] = useState(true);
   const [ffzEnabled, setFfzEnabled] = useState(true);
   const [seventvEnabled, setSeventvEnabled] = useState(true);
-  
+
   const clientRef = useRef<Client | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollPendingRef = useRef<boolean>(false);
@@ -636,7 +637,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
 
   // Enhanced auto-scroll with requestAnimationFrame for reliability during rapid messages
   const scrollToBottom = useCallback(() => {
-    if (!listRef.current || scrollPaused) {
+    if (!listRef.current || scrollPausedRef.current) {
       scrollPendingRef.current = false;
       return;
     }
@@ -645,16 +646,16 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
 
     // Use requestAnimationFrame for guaranteed execution after DOM updates
     requestAnimationFrame(() => {
-      if (!scrollPaused && el) {
+      if (!scrollPausedRef.current && el) {
         el.scrollTop = el.scrollHeight;
       }
       scrollPendingRef.current = false;
     });
-  }, [scrollPaused]);
+  }, []);
 
   // Auto scroll to bottom when new messages arrive (only if not paused)
   useEffect(() => {
-    if (scrollPaused) return;
+    if (scrollPausedRef.current) return;
 
     // Only schedule a new scroll if one isn't already pending
     // This prevents canceling pending scrolls during rapid message influx
@@ -662,7 +663,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
       scrollPendingRef.current = true;
       scrollToBottom();
     }
-  }, [messages.length, scrollToBottom, scrollPaused]);
+  }, [messages.length, scrollToBottom]);
 
   // Enhanced scroll detection with better accuracy during rapid messages
   const isNearBottom = useCallback((element: HTMLElement): boolean => {
@@ -683,13 +684,15 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
       // Debounce scroll events to avoid excessive checks during rapid scrolling
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
-        const wasNearBottom = isNearBottom(el);
+        const nearBottom = isNearBottom(el);
 
-        if (wasNearBottom && scrollPaused) {
+        if (nearBottom && scrollPausedRef.current) {
           // User scrolled back to bottom, resume auto-scroll
+          scrollPausedRef.current = false;
           setScrollPaused(false);
-        } else if (!wasNearBottom && !scrollPaused) {
-          // User scrolled up from bottom, pause auto-scroll
+        } else if (!nearBottom && !scrollPausedRef.current) {
+          // User scrolled up from bottom, pause auto-scroll immediately
+          scrollPausedRef.current = true;
           setScrollPaused(true);
         }
       }, 50);
@@ -700,12 +703,13 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
       el.removeEventListener('scroll', handleScroll);
       clearTimeout(scrollTimeout);
     };
-  }, [scrollPaused, isNearBottom]);
+  }, [isNearBottom]);
 
   // Handle keyboard events for down arrow to unpause
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown' && scrollPaused) {
+      if (e.key === 'ArrowDown' && scrollPausedRef.current) {
+        scrollPausedRef.current = false;
         setScrollPaused(false);
         // Immediately scroll to bottom
         scrollToBottom();
@@ -726,7 +730,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
     const contentEl = (container.firstElementChild as HTMLElement) || container;
 
     const ensureBottom = () => {
-      if (scrollPaused) return;
+      if (scrollPausedRef.current) return;
       scrollToBottom();
     };
 
@@ -739,7 +743,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
     return () => {
       ro.disconnect();
     };
-  }, [scrollPaused, scrollToBottom]);
+  }, [scrollToBottom]);
 
   // Removed scroll functions since we always auto-scroll
 
@@ -935,8 +939,8 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
                         {showBadges && m.badges.map((badge, idx) => {
                           const { emoji, title, description } = getBadgeInfo(badge.setID, badge.version);
                           return (
-                            <Tooltip key={`${m.id}-badge-${badge.setID}-${badge.version}-${idx}`} content={`${title}: ${description}`}>
-                              <span className="text-xs leading-none cursor-help">
+                            <Tooltip key={`${m.id}-badge-${badge.setID}-${badge.version}-${idx}`} content={`${title}: ${description}`} delay={200}>
+                              <span className="text-xs leading-none cursor-default">
                                 {emoji}
                               </span>
                             </Tooltip>
@@ -1057,6 +1061,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
           <div className="absolute bottom-20 right-4 z-10">
             <button
               onClick={() => {
+                scrollPausedRef.current = false;
                 setScrollPaused(false);
                 scrollToBottom();
               }}
