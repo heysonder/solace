@@ -62,8 +62,9 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
         if (cancelled) return;
 
         if (preferNative && el.canPlayType('application/vnd.apple.mpegurl')) {
-          // Safari: native HLS
-          el.src = m3u8Url;
+          // Safari: native HLS, routed through /api/proxy so ad segments
+          // get stripped and variant/segment URLs stay inside the proxy.
+          el.src = `/api/proxy?url=${encodeURIComponent(m3u8Url)}`;
           el.addEventListener('loadeddata', () => {
             if (!cancelled) setLoading(false);
           }, { once: true });

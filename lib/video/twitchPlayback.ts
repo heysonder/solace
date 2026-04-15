@@ -31,7 +31,7 @@ export async function fetchPlaybackToken(channel: string): Promise<PlaybackData>
       login: channel.toLowerCase(),
       isVod: false,
       vodID: '',
-      playerType: 'site',
+      playerType: 'thunderdome',
     },
   });
 
