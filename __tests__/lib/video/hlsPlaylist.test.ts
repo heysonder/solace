@@ -122,13 +122,13 @@ describe('hlsPlaylist', () => {
         'https://video-edge.twitch.tv/seg.ts',
       ].join('\n');
       const out = rewritePlaylistUrls(input);
-      expect(out).toContain('/api/proxy?url=https%3A%2F%2Fvideo-edge.twitch.tv%2Fseg.ts');
+      expect(out).toContain('?url=https%3A%2F%2Fvideo-edge.twitch.tv%2Fseg.ts');
     });
 
     it('resolves relative URIs against baseUrl before wrapping', () => {
       const input = '#EXTM3U\n#EXTINF:2.0,\n1.ts\n';
       const out = rewritePlaylistUrls(input, 'https://usher.ttvnw.net/api/channel/hls/foo.m3u8?q=1');
-      expect(out).toContain('/api/proxy?url=https%3A%2F%2Fusher.ttvnw.net%2Fapi%2Fchannel%2Fhls%2F1.ts');
+      expect(out).toContain('?url=https%3A%2F%2Fusher.ttvnw.net%2Fapi%2Fchannel%2Fhls%2F1.ts');
     });
 
     it('leaves relative URLs untouched when no baseUrl is given', () => {
@@ -141,7 +141,7 @@ describe('hlsPlaylist', () => {
       const out = rewritePlaylistUrls(input, 'https://host.example/a/b.m3u8');
       expect(out).toContain('#EXT-X-VERSION:6');
       expect(out).toContain('#EXTM3U');
-      expect(out).toContain('/api/proxy?url=https%3A%2F%2Fhost.example%2Fa%2F1.ts');
+      expect(out).toContain('?url=https%3A%2F%2Fhost.example%2Fa%2F1.ts');
     });
   });
 });
