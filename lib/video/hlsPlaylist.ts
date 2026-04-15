@@ -130,12 +130,50 @@ export function proxyUrl(url: string): string {
 }
 
 /**
- * Rewrite absolute URLs inside an M3U8 playlist to go through the proxy.
- * This ensures variant playlists and segment URLs are also proxied.
+ * Rewrite URLs inside an M3U8 playlist so sub-requests go through the proxy.
+ *
+ * Twitch variant/segment URIs can be absolute (https://...) or relative
+ * (e.g. `1.ts`). Relative URIs would resolve against /api/proxy in the
+ * browser (broken), so we resolve them against `baseUrl` — the URL of the
+ * manifest itself — before wrapping. If baseUrl is omitted, only absolute
+ * URLs are rewritten (legacy behavior; relative lines are left untouched).
  */
 export function rewritePlaylistUrls(
   playlistText: string,
+  baseUrl?: string,
   wrap: (url: string) => string = proxyUrl,
 ): string {
-  return playlistText.replace(/^(https?:\/\/.+)$/gm, (match) => wrap(match));
+  const lines = playlistText.split('\n');
+  const out: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Tags and blanks pass through
+    if (!trimmed || trimmed.startsWith('#')) {
+      out.push(line);
+      continue;
+    }
+
+    // Absolute URL — always wrap
+    if (/^https?:\/\//i.test(trimmed)) {
+      out.push(wrap(trimmed));
+      continue;
+    }
+
+    // Relative URI — resolve against baseUrl if provided
+    if (baseUrl) {
+      try {
+        const resolved = new URL(trimmed, baseUrl).toString();
+        out.push(wrap(resolved));
+        continue;
+      } catch {
+        // Fall through and leave the line untouched
+      }
+    }
+
+    out.push(line);
+  }
+
+  return out.join('\n');
 }

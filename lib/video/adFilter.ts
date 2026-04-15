@@ -18,10 +18,12 @@ export function createAdFilterLoader(): typeof Hls.DefaultConfig.loader {
 
   class AdFilterProxyLoader extends (DefaultLoader as any) {
     load(context: any, config: any, callbacks: any): void {
-      const url: string = context.url;
-      if (url.startsWith('https://')) {
-        console.log('[AdFilter] Proxying:', url.substring(0, 80) + '...');
-        context.url = proxyUrl(url);
+      // Capture the original (pre-proxy) URL so we can resolve relative
+      // playlist URIs against it when rewriting.
+      const originalUrl: string = context.url;
+      if (originalUrl.startsWith('https://')) {
+        console.log('[AdFilter] Proxying:', originalUrl.substring(0, 80) + '...');
+        context.url = proxyUrl(originalUrl);
       }
 
       const originalOnSuccess = callbacks.onSuccess;
@@ -29,7 +31,7 @@ export function createAdFilterLoader(): typeof Hls.DefaultConfig.loader {
       callbacks.onSuccess = (response: any, stats: any, ctx: any, networkDetails: any) => {
         if (typeof response.data === 'string') {
           if (response.data.includes('#EXTM3U')) {
-            response.data = rewritePlaylistUrls(response.data);
+            response.data = rewritePlaylistUrls(response.data, originalUrl);
           }
 
           if (response.data.includes('#EXTINF:') && hasAdSegments(response.data)) {

@@ -2,38 +2,52 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasAdSegments, rewritePlaylistUrls, stripAdSegments } from "@/lib/video/hlsPlaylist";
 
 // SECURITY: Only allow same-origin requests or configured origins.
-// Returns '*' for opaque origins (e.g. hls.js blob workers on Firefox) and
-// unrecognized origins — the real security boundary is the URL allowlist below.
-function getAllowedOrigin(request: NextRequest): string {
+// Returns null when the origin is cross-origin and not on the allowlist —
+// callers should omit ACAO entirely (browsers then reject the response).
+// Returns '*' only for the opaque 'null' origin (blob: / data: / sandboxed
+// iframe contexts such as hls.js blob workers on Firefox). Missing Origin
+// header means the request is same-origin or server-to-server — CORS doesn't
+// apply, so we also return null there.
+function getAllowedOrigin(request: NextRequest): string | null {
   const origin = request.headers.get('origin');
   const host = request.headers.get('host');
 
-  // No origin header (same-origin XHR) or opaque origin (blob: worker) — allow all
-  if (!origin || origin === 'null') return '*';
+  if (!origin) return null;
+  if (origin === 'null') return '*';
 
-  // Check if origin matches the host (same site) — reflect for credentialed requests
+  // Same-origin: reflect
   try {
     const originUrl = new URL(origin);
     if (originUrl.host === host) {
       return origin;
     }
   } catch {
-    // Invalid origin — fall through to wildcard
+    return null;
   }
 
-  // Check configured allowed origins
   const allowedOrigins = process.env.ALLOWED_CORS_ORIGINS?.split(',').map(o => o.trim()) || [];
   if (allowedOrigins.includes(origin)) {
     return origin;
   }
 
-  // In development, allow localhost
   if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
     return origin;
   }
 
-  // Fallback: wildcard (proxy is protected by the URL allowlist, not CORS)
-  return '*';
+  return null;
+}
+
+function corsHeadersFor(request: NextRequest): Record<string, string> {
+  const allowedOrigin = getAllowedOrigin(request);
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Vary': 'Origin',
+  };
+  if (allowedOrigin) {
+    headers['Access-Control-Allow-Origin'] = allowedOrigin;
+  }
+  return headers;
 }
 
 // SECURITY: Allowlist of permitted domains to prevent SSRF attacks
@@ -117,12 +131,7 @@ export async function GET(request: NextRequest) {
 
     const contentType = response.headers.get('content-type') || '';
 
-    const allowedOrigin = getAllowedOrigin(request);
-    const corsHeaders: Record<string, string> = {
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Allow-Origin': allowedOrigin,
-    };
+    const corsHeaders = corsHeadersFor(request);
 
     // Determine if content is text (playlists) or binary (video segments)
     const isText = contentType.includes('mpegurl') ||
@@ -144,7 +153,7 @@ export async function GET(request: NextRequest) {
         if (hasAdSegments(content)) {
           content = stripAdSegments(content);
         }
-        content = rewritePlaylistUrls(content);
+        content = rewritePlaylistUrls(content, target);
       }
 
       return new NextResponse(content, {
@@ -179,15 +188,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function OPTIONS(request: NextRequest) {
-  const allowedOrigin = getAllowedOrigin(request);
-  const corsHeaders: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Origin': allowedOrigin,
-  };
-
   return new NextResponse(null, {
     status: 200,
-    headers: corsHeaders,
+    headers: corsHeadersFor(request),
   });
 }

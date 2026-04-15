@@ -125,9 +125,23 @@ describe('hlsPlaylist', () => {
       expect(out).toContain('/api/proxy?url=https%3A%2F%2Fvideo-edge.twitch.tv%2Fseg.ts');
     });
 
-    it('leaves relative URLs alone', () => {
+    it('resolves relative URIs against baseUrl before wrapping', () => {
+      const input = '#EXTM3U\n#EXTINF:2.0,\n1.ts\n';
+      const out = rewritePlaylistUrls(input, 'https://usher.ttvnw.net/api/channel/hls/foo.m3u8?q=1');
+      expect(out).toContain('/api/proxy?url=https%3A%2F%2Fusher.ttvnw.net%2Fapi%2Fchannel%2Fhls%2F1.ts');
+    });
+
+    it('leaves relative URLs untouched when no baseUrl is given', () => {
       const input = '#EXTM3U\n#EXTINF:2.0,\nseg.ts\n';
       expect(rewritePlaylistUrls(input)).toBe(input);
+    });
+
+    it('preserves tag and blank lines', () => {
+      const input = '#EXTM3U\n#EXT-X-VERSION:6\n\n#EXTINF:2.0,\n1.ts\n';
+      const out = rewritePlaylistUrls(input, 'https://host.example/a/b.m3u8');
+      expect(out).toContain('#EXT-X-VERSION:6');
+      expect(out).toContain('#EXTM3U');
+      expect(out).toContain('/api/proxy?url=https%3A%2F%2Fhost.example%2Fa%2F1.ts');
     });
   });
 });

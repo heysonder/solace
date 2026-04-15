@@ -90,9 +90,11 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
   const clientRef = useRef<Client | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollPendingRef = useRef<boolean>(false);
-  // Tracks programmatic scrolls so the pause detector ignores them
-  const isProgrammaticScrollRef = useRef<boolean>(false);
-  const programmaticScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks programmatic scrolls so the pause detector ignores them.
+  // We match on target scrollTop (with epsilon) plus a sequence id so rapid
+  // successive programmatic scrolls don't leave a stale ignore flag set.
+  const programmaticScrollTargetRef = useRef<number | null>(null);
+  const programmaticScrollSeqRef = useRef<number>(0);
   // Get credentials from localStorage (set by UserProfile after OAuth)
   const [username, setUsername] = useState<string | undefined>();
   const [oauth, setOauth] = useState<string | undefined>();
@@ -649,15 +651,12 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
 
     requestAnimationFrame(() => {
       if (!scrollPausedRef.current && el) {
-        // Flag as programmatic BEFORE assigning scrollTop so the scroll
-        // event handler sees it immediately (Firefox fires it synchronously).
-        isProgrammaticScrollRef.current = true;
-        if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
-        // Reset after the scroll handler's debounce window (50ms) + margin
-        programmaticScrollTimerRef.current = setTimeout(() => {
-          isProgrammaticScrollRef.current = false;
-        }, 150);
-
+        // Record the target position + advance sequence BEFORE assigning
+        // scrollTop so the scroll event handler sees it immediately (Firefox
+        // fires it synchronously).
+        const target = el.scrollHeight - el.clientHeight;
+        programmaticScrollTargetRef.current = target;
+        programmaticScrollSeqRef.current += 1;
         el.scrollTop = el.scrollHeight;
       }
       scrollPendingRef.current = false;
@@ -691,23 +690,37 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
 
     let scrollTimeout: NodeJS.Timeout;
 
+    const SCROLL_EPSILON = 2;
+
+    const matchesProgrammaticTarget = () => {
+      const target = programmaticScrollTargetRef.current;
+      if (target == null) return false;
+      return Math.abs(el.scrollTop - target) <= SCROLL_EPSILON;
+    };
+
     const handleScroll = () => {
-      // Ignore scroll events that we triggered programmatically
-      if (isProgrammaticScrollRef.current) return;
+      // Only ignore the scroll event if the current position matches the
+      // intended programmatic target. Any other scroll (including one that
+      // arrives while a programmatic scroll is pending) is treated as a
+      // real user scroll.
+      if (matchesProgrammaticTarget()) {
+        programmaticScrollTargetRef.current = null;
+        return;
+      }
 
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
-        // Re-check: a programmatic scroll may have started during the debounce
-        if (isProgrammaticScrollRef.current) return;
+        if (matchesProgrammaticTarget()) {
+          programmaticScrollTargetRef.current = null;
+          return;
+        }
 
         const nearBottom = isNearBottom(el);
 
         if (nearBottom && scrollPausedRef.current) {
-          // User scrolled back to bottom, resume auto-scroll
           scrollPausedRef.current = false;
           setScrollPaused(false);
         } else if (!nearBottom && !scrollPausedRef.current) {
-          // User scrolled up from bottom, pause auto-scroll
           scrollPausedRef.current = true;
           setScrollPaused(true);
         }
