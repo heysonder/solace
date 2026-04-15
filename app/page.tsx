@@ -158,7 +158,7 @@ export default function Home() {
 
         {/* Error Display */}
         {error && (
-          <div className="mt-6 bg-red-500/20 border border-red-500/30 rounded-lg p-4">
+          <div className="mt-6 bg-red-500/20 border border-red-500/30 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-red-300 font-semibold text-base">failed to load streams</h3>

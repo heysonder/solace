@@ -121,7 +121,7 @@ export default function VideoControls({ videoRef, streamTitle, gameName }: Video
           <div className="flex-1" />
 
           {/* LIVE badge */}
-          <span className="px-2 py-0.5 text-xs font-bold bg-red-600 text-white rounded">LIVE</span>
+          <span className="px-2 py-0.5 text-xs font-bold bg-red-600 text-white rounded-md">LIVE</span>
 
           {/* Fullscreen */}
           <button onClick={toggleFullscreen} className="text-white hover:text-white/80 transition-colors">

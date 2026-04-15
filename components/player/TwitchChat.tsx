@@ -90,7 +90,9 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
   const clientRef = useRef<Client | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollPendingRef = useRef<boolean>(false);
-  // Removed smooth scroll animation refs since we always auto-scroll
+  // Tracks programmatic scrolls so the pause detector ignores them
+  const isProgrammaticScrollRef = useRef<boolean>(false);
+  const programmaticScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Get credentials from localStorage (set by UserProfile after OAuth)
   const [username, setUsername] = useState<string | undefined>();
   const [oauth, setOauth] = useState<string | undefined>();
@@ -635,7 +637,8 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
     };
   }, [channel, username, oauth]);
 
-  // Enhanced auto-scroll with requestAnimationFrame for reliability during rapid messages
+  // Auto-scroll to bottom. Marks the scroll as programmatic so the pause
+  // detector ignores the resulting scroll event (fixes Firefox race condition).
   const scrollToBottom = useCallback(() => {
     if (!listRef.current || scrollPausedRef.current) {
       scrollPendingRef.current = false;
@@ -644,9 +647,17 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
 
     const el = listRef.current;
 
-    // Use requestAnimationFrame for guaranteed execution after DOM updates
     requestAnimationFrame(() => {
       if (!scrollPausedRef.current && el) {
+        // Flag as programmatic BEFORE assigning scrollTop so the scroll
+        // event handler sees it immediately (Firefox fires it synchronously).
+        isProgrammaticScrollRef.current = true;
+        if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
+        // Reset after the scroll handler's debounce window (50ms) + margin
+        programmaticScrollTimerRef.current = setTimeout(() => {
+          isProgrammaticScrollRef.current = false;
+        }, 150);
+
         el.scrollTop = el.scrollHeight;
       }
       scrollPendingRef.current = false;
@@ -681,9 +692,14 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
     let scrollTimeout: NodeJS.Timeout;
 
     const handleScroll = () => {
-      // Debounce scroll events to avoid excessive checks during rapid scrolling
+      // Ignore scroll events that we triggered programmatically
+      if (isProgrammaticScrollRef.current) return;
+
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
+        // Re-check: a programmatic scroll may have started during the debounce
+        if (isProgrammaticScrollRef.current) return;
+
         const nearBottom = isNearBottom(el);
 
         if (nearBottom && scrollPausedRef.current) {
@@ -691,7 +707,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
           scrollPausedRef.current = false;
           setScrollPaused(false);
         } else if (!nearBottom && !scrollPausedRef.current) {
-          // User scrolled up from bottom, pause auto-scroll immediately
+          // User scrolled up from bottom, pause auto-scroll
           scrollPausedRef.current = true;
           setScrollPaused(true);
         }
@@ -917,7 +933,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
                 <div className="flex-1 min-w-0">
                   {/* Reply indicator */}
                   {m.replyTo && (
-                    <div className="mb-1 flex items-center gap-1.5 text-xs bg-white/5 rounded-md px-2 py-1 border-l-2 border-text-muted">
+                    <div className="mb-1 flex items-center gap-1.5 text-xs bg-white/5 rounded-lg px-2 py-1 border-l-2 border-text-muted">
                       <svg className="h-3 w-3 text-text-muted" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414L2.586 8l3.707-3.707a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
@@ -979,7 +995,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
                             // Handle mentions highlighting
                             if (part.content.startsWith('@')) {
                               return (
-                                <span key={partKey} className="text-purple-300 font-semibold bg-purple-900/30 px-1 rounded">
+                                <span key={partKey} className="text-purple-300 font-semibold bg-purple-900/30 px-1 rounded-md">
                                   {part.content}
                                 </span>
                               );
@@ -1013,7 +1029,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
                           // Handle mentions highlighting
                           if (part.content.startsWith('@')) {
                             return (
-                              <span key={partKey} className="text-purple-300 font-semibold bg-purple-900/30 px-1 rounded">
+                              <span key={partKey} className="text-purple-300 font-semibold bg-purple-900/30 px-1 rounded-md">
                                 {part.content}
                               </span>
                             );
@@ -1046,7 +1062,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
             </div>
             <button
               onClick={cancelReply}
-              className="rounded-lg hover:bg-white/10 p-1.5 text-text-muted hover:text-white transition-colors"
+              className="rounded-xl hover:bg-white/10 p-1.5 text-text-muted hover:text-white transition-colors"
               title="Cancel reply"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

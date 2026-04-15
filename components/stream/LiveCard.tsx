@@ -71,7 +71,7 @@ export default function LiveCard({ s, index = 0 }: { s: Stream; index?: number }
         </button>
 
         {/* Viewer count */}
-        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-medium px-2 py-1 rounded">
+        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-medium px-2 py-1 rounded-lg">
           {fmtViewers(s.viewer_count)}
         </div>
       </div>
