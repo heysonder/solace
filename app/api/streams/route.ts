@@ -19,7 +19,9 @@ export async function GET(req: Request) {
     const language = searchParams.get("language") ?? "en";
 
     const data = await helix("streams", { first, after, game_id, language });
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: { 'Cache-Control': 's-maxage=30, stale-while-revalidate=120' },
+    });
   } catch (error) {
     console.error("Streams API error:", error);
     return NextResponse.json(

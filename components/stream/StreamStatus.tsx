@@ -47,8 +47,8 @@ export default function StreamStatus({ channel }: StreamStatusProps) {
 
     fetchStreamStatus();
     
-    // Poll for updates every 30 seconds
-    const interval = setInterval(fetchStreamStatus, 30000);
+    // Poll for updates every 90s — edge caching handles short-term freshness
+    const interval = setInterval(fetchStreamStatus, 90000);
     return () => clearInterval(interval);
   }, [channel]);
 

@@ -72,8 +72,17 @@ export default function Home() {
       const response = await fetch(url);
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+        const ct = response.headers.get('content-type') || '';
+        let msg = `HTTP ${response.status}`;
+        if (ct.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            if (errorData.error) msg = errorData.error;
+          } catch {}
+        } else if (response.status === 429) {
+          msg = 'Rate limited by Vercel — give it a sec and refresh.';
+        }
+        throw new Error(msg);
       }
 
       const data = await response.json();

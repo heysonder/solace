@@ -37,12 +37,10 @@ export async function GET(_req: Request, { params }: { params: { login: string }
     const videos = videosResult.status === 'fulfilled' ? (videosResult.value.data ?? []) : [];
     const clips = clipsResult.status === 'fulfilled' ? (clipsResult.value.data ?? []) : [];
     
-    return NextResponse.json({ 
-      user, 
-      liveStream, 
-      videos, 
-      clips 
-    });
+    return NextResponse.json(
+      { user, liveStream, videos, clips },
+      { headers: { 'Cache-Control': 's-maxage=30, stale-while-revalidate=120' } }
+    );
   } catch (error) {
     console.error("Channel API error:", error);
     return NextResponse.json(
