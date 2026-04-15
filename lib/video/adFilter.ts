@@ -21,7 +21,16 @@ export function createAdFilterLoader(): typeof Hls.DefaultConfig.loader {
       // Capture the original (pre-proxy) URL so we can resolve relative
       // playlist URIs against it when rewriting.
       const originalUrl: string = context.url;
-      if (originalUrl.startsWith('https://')) {
+
+      // Don't re-wrap URLs that already point at our proxy — manifests
+      // served by /api/proxy already rewrite nested URLs through the same
+      // endpoint, so a second wrap would create `/api/proxy?url=.../api/proxy?url=...`
+      // chains and trip the URL allowlist.
+      const isAlreadyProxied =
+        originalUrl.includes('/api/proxy?url=') ||
+        originalUrl.startsWith('/api/proxy');
+
+      if (originalUrl.startsWith('https://') && !isAlreadyProxied) {
         console.log('[AdFilter] Proxying:', originalUrl.substring(0, 80) + '...');
         context.url = proxyUrl(originalUrl);
       }
