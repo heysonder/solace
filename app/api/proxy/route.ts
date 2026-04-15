@@ -148,12 +148,16 @@ export async function GET(request: NextRequest) {
       let content = await response.text();
 
       // Strip ads and rewrite sub-URLs so nested fetches stay in the proxy.
-      // Only touch HLS manifests (identified by #EXTM3U).
+      // Only touch HLS manifests (identified by #EXTM3U). We emit origin-
+      // absolute proxy URLs so that neither the browser (for Safari native
+      // HLS) nor hls.js can mis-resolve them against the upstream URL.
       if (content.includes('#EXTM3U')) {
         if (hasAdSegments(content)) {
           content = stripAdSegments(content);
         }
-        content = rewritePlaylistUrls(content, target);
+        const origin = request.nextUrl.origin;
+        const wrap = (u: string) => `${origin}/api/proxy?url=${encodeURIComponent(u)}`;
+        content = rewritePlaylistUrls(content, target, wrap);
       }
 
       return new NextResponse(content, {
