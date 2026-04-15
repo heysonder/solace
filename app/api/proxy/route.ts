@@ -1,21 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasAdSegments, rewritePlaylistUrls, stripAdSegments } from "@/lib/video/hlsPlaylist";
 
-// SECURITY: Only allow same-origin requests or configured origins
-function getAllowedOrigin(request: NextRequest): string | null {
+// SECURITY: Only allow same-origin requests or configured origins.
+// Returns '*' for opaque origins (e.g. hls.js blob workers on Firefox) and
+// unrecognized origins — the real security boundary is the URL allowlist below.
+function getAllowedOrigin(request: NextRequest): string {
   const origin = request.headers.get('origin');
   const host = request.headers.get('host');
 
-  // Same-origin requests (no origin header or matches host)
-  if (!origin) return null; // Let browser handle same-origin
+  // No origin header (same-origin XHR) or opaque origin (blob: worker) — allow all
+  if (!origin || origin === 'null') return '*';
 
-  // Check if origin matches the host (same site)
+  // Check if origin matches the host (same site) — reflect for credentialed requests
   try {
     const originUrl = new URL(origin);
     if (originUrl.host === host) {
       return origin;
     }
   } catch {
-    // Invalid origin
+    // Invalid origin — fall through to wildcard
   }
 
   // Check configured allowed origins
@@ -29,7 +32,8 @@ function getAllowedOrigin(request: NextRequest): string | null {
     return origin;
   }
 
-  return null;
+  // Fallback: wildcard (proxy is protected by the URL allowlist, not CORS)
+  return '*';
 }
 
 // SECURITY: Allowlist of permitted domains to prevent SSRF attacks
@@ -117,10 +121,8 @@ export async function GET(request: NextRequest) {
     const corsHeaders: Record<string, string> = {
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Origin': allowedOrigin,
     };
-    if (allowedOrigin) {
-      corsHeaders['Access-Control-Allow-Origin'] = allowedOrigin;
-    }
 
     // Determine if content is text (playlists) or binary (video segments)
     const isText = contentType.includes('mpegurl') ||
@@ -134,7 +136,17 @@ export async function GET(request: NextRequest) {
     const cacheControl = isHls ? 'no-cache, no-store' : 'public, max-age=3600';
 
     if (isText) {
-      const content = await response.text();
+      let content = await response.text();
+
+      // Strip ads and rewrite sub-URLs so nested fetches stay in the proxy.
+      // Only touch HLS manifests (identified by #EXTM3U).
+      if (content.includes('#EXTM3U')) {
+        if (hasAdSegments(content)) {
+          content = stripAdSegments(content);
+        }
+        content = rewritePlaylistUrls(content);
+      }
+
       return new NextResponse(content, {
         status: 200,
         headers: {
@@ -171,10 +183,8 @@ export async function OPTIONS(request: NextRequest) {
   const corsHeaders: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Origin': allowedOrigin,
   };
-  if (allowedOrigin) {
-    corsHeaders['Access-Control-Allow-Origin'] = allowedOrigin;
-  }
 
   return new NextResponse(null, {
     status: 200,

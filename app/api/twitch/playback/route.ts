@@ -36,7 +36,7 @@ async function fetchPlaybackToken(channel: string, userAccessToken?: string): Pr
       login: channel,
       isVod: false,
       vodID: '',
-      playerType: 'site',
+      playerType: 'thunderdome',
     },
   });
 

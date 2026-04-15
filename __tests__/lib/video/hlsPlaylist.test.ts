@@ -1,0 +1,133 @@
+import { describe, it, expect } from 'vitest';
+import { hasAdSegments, rewritePlaylistUrls, stripAdSegments } from '@/lib/video/hlsPlaylist';
+
+describe('hlsPlaylist', () => {
+  describe('hasAdSegments', () => {
+    it('detects DATERANGE stitched-ad', () => {
+      const m3u8 = [
+        '#EXTM3U',
+        '#EXT-X-VERSION:6',
+        '#EXT-X-DATERANGE:ID="stitched-ad-1",CLASS="twitch-stitched-ad",START-DATE="2026-01-01T00:00:00Z",DURATION=30.0',
+        '#EXTINF:2.0,live',
+        'segment.ts',
+      ].join('\n');
+      expect(hasAdSegments(m3u8)).toBe(true);
+    });
+
+    it('detects SCTE35-OUT', () => {
+      expect(hasAdSegments('#EXTM3U\n#EXT-X-SCTE35-OUT\n')).toBe(true);
+    });
+
+    it('returns false for clean playlists', () => {
+      const m3u8 = '#EXTM3U\n#EXT-X-VERSION:6\n#EXTINF:2.0,live\nseg.ts\n';
+      expect(hasAdSegments(m3u8)).toBe(false);
+    });
+  });
+
+  describe('stripAdSegments', () => {
+    it('removes DATERANGE-bounded ad segments using DURATION', () => {
+      const input = [
+        '#EXTM3U',
+        '#EXT-X-VERSION:6',
+        '#EXT-X-TARGETDURATION:3',
+        '#EXT-X-DATERANGE:ID="stitched-ad-1",CLASS="twitch-stitched-ad",DURATION=4.0',
+        '#EXT-X-DISCONTINUITY',
+        '#EXTINF:2.0,ad',
+        'ad-1.ts',
+        '#EXTINF:2.0,ad',
+        'ad-2.ts',
+        '#EXT-X-DISCONTINUITY',
+        '#EXTINF:2.0,live',
+        'live-1.ts',
+        '#EXTINF:2.0,live',
+        'live-2.ts',
+      ].join('\n');
+
+      const out = stripAdSegments(input);
+      expect(out).not.toContain('ad-1.ts');
+      expect(out).not.toContain('ad-2.ts');
+      expect(out).not.toContain('twitch-stitched-ad');
+      expect(out).toContain('live-1.ts');
+      expect(out).toContain('live-2.ts');
+      expect(out).toContain('#EXTM3U');
+    });
+
+    it('exits ad mode on second discontinuity when no DURATION is set', () => {
+      const input = [
+        '#EXTM3U',
+        '#EXT-X-DATERANGE:ID="stitched-ad-2",CLASS="twitch-stitched-ad"',
+        '#EXT-X-DISCONTINUITY',
+        '#EXTINF:2.0,ad',
+        'ad.ts',
+        '#EXT-X-DISCONTINUITY',
+        '#EXTINF:2.0,live',
+        'live.ts',
+      ].join('\n');
+
+      const out = stripAdSegments(input);
+      expect(out).not.toContain('ad.ts');
+      expect(out).toContain('live.ts');
+    });
+
+    it('exits ad mode on SCTE35-IN', () => {
+      const input = [
+        '#EXTM3U',
+        '#EXT-X-SCTE35-OUT',
+        '#EXTINF:2.0,ad',
+        'ad.ts',
+        '#EXT-X-SCTE35-IN',
+        '#EXTINF:2.0,live',
+        'live.ts',
+      ].join('\n');
+
+      const out = stripAdSegments(input);
+      expect(out).not.toContain('ad.ts');
+      expect(out).toContain('live.ts');
+    });
+
+    it('leaves clean playlists untouched (all segments preserved)', () => {
+      const input = [
+        '#EXTM3U',
+        '#EXT-X-VERSION:6',
+        '#EXTINF:2.0,live',
+        'a.ts',
+        '#EXTINF:2.0,live',
+        'b.ts',
+      ].join('\n');
+
+      const out = stripAdSegments(input);
+      expect(out).toContain('a.ts');
+      expect(out).toContain('b.ts');
+    });
+
+    it('preserves #EXTM3U header (output remains valid)', () => {
+      const input = [
+        '#EXTM3U',
+        '#EXT-X-DATERANGE:CLASS="twitch-stitched-ad",DURATION=2.0',
+        '#EXTINF:2.0,ad',
+        'ad.ts',
+        '#EXTINF:2.0,live',
+        'live.ts',
+      ].join('\n');
+      const out = stripAdSegments(input);
+      expect(out.startsWith('#EXTM3U')).toBe(true);
+    });
+  });
+
+  describe('rewritePlaylistUrls', () => {
+    it('wraps absolute URLs through the proxy', () => {
+      const input = [
+        '#EXTM3U',
+        '#EXTINF:2.0,',
+        'https://video-edge.twitch.tv/seg.ts',
+      ].join('\n');
+      const out = rewritePlaylistUrls(input);
+      expect(out).toContain('/api/proxy?url=https%3A%2F%2Fvideo-edge.twitch.tv%2Fseg.ts');
+    });
+
+    it('leaves relative URLs alone', () => {
+      const input = '#EXTM3U\n#EXTINF:2.0,\nseg.ts\n';
+      expect(rewritePlaylistUrls(input)).toBe(input);
+    });
+  });
+});
