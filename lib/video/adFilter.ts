@@ -28,7 +28,8 @@ export function createAdFilterLoader(): typeof Hls.DefaultConfig.loader {
       // chains and trip the URL allowlist.
       const isAlreadyProxied =
         originalUrl.includes('/api/proxy?url=') ||
-        originalUrl.startsWith('/api/proxy');
+        originalUrl.startsWith('/api/proxy') ||
+        originalUrl.includes('ttv-proxy.chasefrazier.dev/?url=');
 
       if (originalUrl.startsWith('https://') && !isAlreadyProxied) {
         console.log('[AdFilter] Proxying:', originalUrl.substring(0, 80) + '...');

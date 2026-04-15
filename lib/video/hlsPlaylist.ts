@@ -123,10 +123,18 @@ export function hasAdSegments(playlistText: string): boolean {
 }
 
 /**
- * Wrap a URL through the /api/proxy endpoint to bypass CORS.
+ * Wrap a URL through the proxy endpoint to bypass CORS.
+ * Defaults to the VPS proxy to avoid Vercel's per-IP rate limit; override
+ * via NEXT_PUBLIC_TTV_PROXY_URL, or set it to empty string to fall back
+ * to the Next.js /api/proxy route.
  */
+const PROXY_BASE =
+  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TTV_PROXY_URL) ||
+  'https://ttv-proxy.chasefrazier.dev';
+
 export function proxyUrl(url: string): string {
-  return `/api/proxy?url=${encodeURIComponent(url)}`;
+  if (!PROXY_BASE) return `/api/proxy?url=${encodeURIComponent(url)}`;
+  return `${PROXY_BASE}/?url=${encodeURIComponent(url)}`;
 }
 
 /**
