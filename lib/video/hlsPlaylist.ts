@@ -11,6 +11,7 @@ const AD_DATERANGE_PATTERN = /^#EXT-X-DATERANGE:.*(?:CLASS="twitch-stitched-ad"|
 const AD_SCTE35_OUT_PATTERN = /^#EXT-X-SCTE35-OUT/i;
 const AD_SCTE35_IN_PATTERN = /^#EXT-X-SCTE35-IN/i;
 const AD_CUE_OUT_PATTERN = /^#EXT-X-CUE-OUT/i;
+const AD_CUE_OUT_CONT_PATTERN = /^#EXT-X-CUE-OUT-CONT/i;
 const AD_CUE_IN_PATTERN = /^#EXT-X-CUE-IN/i;
 const DISCONTINUITY_PATTERN = /^#EXT-X-DISCONTINUITY$/;
 const PREFETCH_PATTERN = /^#EXT-X-TWITCH-PREFETCH:/;
@@ -22,7 +23,7 @@ const DATERANGE_DURATION_PATTERN = /DURATION=([0-9.]+)/;
  * Returns the cleaned playlist text.
  *
  * Strategy: when an ad-marker tag is seen (DATERANGE stitched-ad, SCTE35-OUT,
- * CUE-OUT), enter ad mode. Exit on any of:
+ * CUE-OUT, CUE-OUT-CONT), enter ad mode. Exit on any of:
  *   - explicit close tag (SCTE35-IN, CUE-IN)
  *   - accumulated EXTINF durations meeting/exceeding a DATERANGE DURATION=
  *   - a second DISCONTINUITY after entering ad mode (bounds the ad region)
@@ -55,7 +56,11 @@ export function stripAdSegments(playlistText: string): string {
       continue;
     }
 
-    if (AD_SCTE35_OUT_PATTERN.test(line) || AD_CUE_OUT_PATTERN.test(line)) {
+    if (
+      AD_SCTE35_OUT_PATTERN.test(line) ||
+      AD_CUE_OUT_PATTERN.test(line) ||
+      AD_CUE_OUT_CONT_PATTERN.test(line)
+    ) {
       inAd = true;
       adDurationTarget = 0;
       adDurationElapsed = 0;
@@ -76,6 +81,7 @@ export function stripAdSegments(playlistText: string): string {
         discontinuitiesSeen++;
         if (!adDurationTarget && discontinuitiesSeen >= 2) {
           exitAd();
+          output.push(line);
         }
         continue;
       }
@@ -114,7 +120,8 @@ export function hasAdSegments(playlistText: string): boolean {
     if (
       AD_DATERANGE_PATTERN.test(line) ||
       AD_SCTE35_OUT_PATTERN.test(line) ||
-      AD_CUE_OUT_PATTERN.test(line)
+      AD_CUE_OUT_PATTERN.test(line) ||
+      AD_CUE_OUT_CONT_PATTERN.test(line)
     ) {
       return true;
     }
@@ -124,17 +131,16 @@ export function hasAdSegments(playlistText: string): boolean {
 
 /**
  * Wrap a URL through the proxy endpoint to bypass CORS.
- * Defaults to the VPS proxy to avoid Vercel's per-IP rate limit; override
- * via NEXT_PUBLIC_TTV_PROXY_URL, or set it to empty string to fall back
- * to the Next.js /api/proxy route.
+ * Defaults to the app-local Next.js proxy route. Override with
+ * NEXT_PUBLIC_TTV_PROXY_URL when an external proxy is explicitly desired.
  */
 const PROXY_BASE =
-  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TTV_PROXY_URL) ||
-  'https://ttv-proxy.chasefrazier.dev';
+  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TTV_PROXY_URL?.trim()) ||
+  '';
 
 export function proxyUrl(url: string): string {
   if (!PROXY_BASE) return `/api/proxy?url=${encodeURIComponent(url)}`;
-  return `${PROXY_BASE}/?url=${encodeURIComponent(url)}`;
+  return `${PROXY_BASE.replace(/\/+$/, '')}/?url=${encodeURIComponent(url)}`;
 }
 
 /**

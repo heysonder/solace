@@ -18,6 +18,10 @@ describe('hlsPlaylist', () => {
       expect(hasAdSegments('#EXTM3U\n#EXT-X-SCTE35-OUT\n')).toBe(true);
     });
 
+    it('detects CUE-OUT-CONT when joining during an ad break', () => {
+      expect(hasAdSegments('#EXTM3U\n#EXT-X-CUE-OUT-CONT:ElapsedTime=15,Duration=30\n')).toBe(true);
+    });
+
     it('returns false for clean playlists', () => {
       const m3u8 = '#EXTM3U\n#EXT-X-VERSION:6\n#EXTINF:2.0,live\nseg.ts\n';
       expect(hasAdSegments(m3u8)).toBe(false);
@@ -67,6 +71,7 @@ describe('hlsPlaylist', () => {
       const out = stripAdSegments(input);
       expect(out).not.toContain('ad.ts');
       expect(out).toContain('live.ts');
+      expect(out).toContain('#EXT-X-DISCONTINUITY');
     });
 
     it('exits ad mode on SCTE35-IN', () => {
@@ -83,6 +88,24 @@ describe('hlsPlaylist', () => {
       const out = stripAdSegments(input);
       expect(out).not.toContain('ad.ts');
       expect(out).toContain('live.ts');
+    });
+
+    it('strips ad segments when the playlist only contains CUE-OUT-CONT markers', () => {
+      const input = [
+        '#EXTM3U',
+        '#EXT-X-CUE-OUT-CONT:ElapsedTime=15,Duration=30',
+        '#EXT-X-DISCONTINUITY',
+        '#EXTINF:2.0,ad',
+        'ad.ts',
+        '#EXT-X-DISCONTINUITY',
+        '#EXTINF:2.0,live',
+        'live.ts',
+      ].join('\n');
+
+      const out = stripAdSegments(input);
+      expect(out).not.toContain('ad.ts');
+      expect(out).toContain('live.ts');
+      expect(out).toContain('#EXT-X-DISCONTINUITY');
     });
 
     it('leaves clean playlists untouched (all segments preserved)', () => {
@@ -122,7 +145,7 @@ describe('hlsPlaylist', () => {
         'https://video-edge.twitch.tv/seg.ts',
       ].join('\n');
       const out = rewritePlaylistUrls(input);
-      expect(out).toContain('?url=https%3A%2F%2Fvideo-edge.twitch.tv%2Fseg.ts');
+      expect(out).toContain('/api/proxy?url=https%3A%2F%2Fvideo-edge.twitch.tv%2Fseg.ts');
     });
 
     it('resolves relative URIs against baseUrl before wrapping', () => {
