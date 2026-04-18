@@ -7,7 +7,7 @@
  * The ad content lives inside DISCONTINUITY blocks in the media playlist.
  */
 
-const AD_DATERANGE_PATTERN = /^#EXT-X-DATERANGE:.*(?:CLASS="twitch-stitched-ad"|ID="stitched-ad|CLASS="twitch-ad"|stitched-ad|X-TV-TWITCH-AD-|MIDROLL|midroll)/i;
+const AD_DATERANGE_PATTERN = /^#EXT-X-DATERANGE:.*(?:CLASS="twitch-stitched-ad"|ID="stitched-ad|CLASS="twitch-ad"|stitched-ad|X-TV-TWITCH-AD-[A-Z0-9-]+|MIDROLL|midroll|X-TV-TWITCH-LIVE-SEQUENCE|X-TV-TWITCH-ELAPSED-SECS)/i;
 const AD_SCTE35_OUT_PATTERN = /^#EXT-X-SCTE35-OUT/i;
 const AD_SCTE35_IN_PATTERN = /^#EXT-X-SCTE35-IN/i;
 const AD_CUE_OUT_PATTERN = /^#EXT-X-CUE-OUT/i;

@@ -32,6 +32,16 @@ describe('hlsPlaylist', () => {
       expect(hasAdSegments(m3u8)).toBe(true);
     });
 
+    it('detects ad dateranges that only expose Twitch live sequence metadata', () => {
+      const m3u8 = [
+        '#EXTM3U',
+        '#EXT-X-DATERANGE:ID="ad-2",START-DATE="2026-01-01T00:00:00Z",X-TV-TWITCH-LIVE-SEQUENCE="9012",X-TV-TWITCH-ELAPSED-SECS="4.5"',
+        '#EXTINF:2.0,live',
+        'segment.ts',
+      ].join('\n');
+      expect(hasAdSegments(m3u8)).toBe(true);
+    });
+
     it('returns false for clean playlists', () => {
       const m3u8 = '#EXTM3U\n#EXT-X-VERSION:6\n#EXTINF:2.0,live\nseg.ts\n';
       expect(hasAdSegments(m3u8)).toBe(false);
