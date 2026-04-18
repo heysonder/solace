@@ -1,0 +1,27 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "solace." [ref=e5] [cursor=pointer]:
+        - /url: /
+      - textbox "go to channel…" [ref=e7]
+      - button "sign in" [ref=e9] [cursor=pointer]:
+        - img [ref=e10]
+        - generic [ref=e13]: sign in
+  - main [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - heading "hasanabi" [level=1] [ref=e22]
+          - generic [ref=e25]: checking...
+        - generic [ref=e26]:
+          - button "hide chat" [ref=e27] [cursor=pointer]:
+            - img [ref=e28]
+          - button "immersive mode" [ref=e32] [cursor=pointer]:
+            - img [ref=e33]
+          - button "Add to favorites" [ref=e38] [cursor=pointer]:
+            - img [ref=e39]
+      - complementary [ref=e41]:
+        - generic [ref=e43]:
+          - generic [ref=e47]: live chat
+          - textbox "type here…" [disabled] [ref=e52]
+  - alert [ref=e53]

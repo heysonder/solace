@@ -6,7 +6,6 @@ import { usePreferNativeHLS } from '@/hooks/usePlatform';
 import { initHlsPlayer, destroyHlsPlayer, getQualityLevels, setQualityLevel, type QualityLevel } from '@/lib/video/hlsPlayer';
 import { fetchPlaybackToken } from '@/lib/video/twitchPlayback';
 import { proxyUrl } from '@/lib/video/hlsPlaylist';
-import QualitySelector from './QualitySelector';
 import VideoControls from './VideoControls';
 
 interface NativeHlsPlayerProps {
@@ -130,19 +129,17 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
         playsInline
         autoPlay
       />
-      <VideoControls videoRef={videoRef} streamTitle={streamTitle} gameName={gameName} />
+      <VideoControls
+        videoRef={videoRef}
+        streamTitle={streamTitle}
+        gameName={gameName}
+        qualityLevels={qualities}
+        currentQuality={currentQuality}
+        onQualityChange={handleQualityChange}
+      />
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
           <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-        </div>
-      )}
-      {qualities.length > 0 && (
-        <div className="z-20">
-          <QualitySelector
-            levels={qualities}
-            currentIndex={currentQuality}
-            onSelect={handleQualityChange}
-          />
         </div>
       )}
     </div>

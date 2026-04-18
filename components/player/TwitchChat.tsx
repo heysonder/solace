@@ -95,6 +95,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
   // successive programmatic scrolls don't leave a stale ignore flag set.
   const programmaticScrollTargetRef = useRef<number | null>(null);
   const programmaticScrollSeqRef = useRef<number>(0);
+  const lastObservedScrollTopRef = useRef<number>(0);
   // Get credentials from localStorage (set by UserProfile after OAuth)
   const [username, setUsername] = useState<string | undefined>();
   const [oauth, setOauth] = useState<string | undefined>();
@@ -688,6 +689,8 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
     const el = listRef.current;
     if (!el) return;
 
+    lastObservedScrollTopRef.current = el.scrollTop;
+
     let scrollTimeout: NodeJS.Timeout;
 
     const SCROLL_EPSILON = 2;
@@ -705,6 +708,7 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
       // real user scroll.
       if (matchesProgrammaticTarget()) {
         programmaticScrollTargetRef.current = null;
+        lastObservedScrollTopRef.current = el.scrollTop;
         return;
       }
 
@@ -712,15 +716,20 @@ export default function TwitchChat({ channel, playerMode = "basic" }: { channel:
       scrollTimeout = setTimeout(() => {
         if (matchesProgrammaticTarget()) {
           programmaticScrollTargetRef.current = null;
+          lastObservedScrollTopRef.current = el.scrollTop;
           return;
         }
 
         const nearBottom = isNearBottom(el);
+        const previousScrollTop = lastObservedScrollTopRef.current;
+        const currentScrollTop = el.scrollTop;
+        const scrolledUp = currentScrollTop < previousScrollTop - SCROLL_EPSILON;
+        lastObservedScrollTopRef.current = currentScrollTop;
 
         if (nearBottom && scrollPausedRef.current) {
           scrollPausedRef.current = false;
           setScrollPaused(false);
-        } else if (!nearBottom && !scrollPausedRef.current) {
+        } else if (!nearBottom && !scrollPausedRef.current && scrolledUp) {
           scrollPausedRef.current = true;
           setScrollPaused(true);
         }

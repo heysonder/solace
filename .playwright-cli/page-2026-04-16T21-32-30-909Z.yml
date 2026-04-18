@@ -1,0 +1,296 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - button "Skip to... ⌥ P" [ref=e9]:
+            - generic [ref=e10]:
+              - generic [ref=e11]:
+                - text: Skip to...
+                - generic [ref=e12]:
+                  - generic [ref=e14]: ⌥
+                  - generic [ref=e16]: P
+              - img [ref=e20]
+          - link "Twitch Home" [ref=e22] [cursor=pointer]:
+            - /url: /
+            - figure [ref=e24]:
+              - img [ref=e25]
+          - link "Browse" [ref=e35] [cursor=pointer]:
+            - /url: /directory
+            - paragraph [ref=e38]: Browse
+          - button "More Options" [ref=e43]:
+            - generic:
+              - generic:
+                - img
+        - search [ref=e48]:
+          - generic [ref=e51]:
+            - searchbox "Search Input" [ref=e55]
+            - button "Search Button" [disabled] [ref=e57]:
+              - img [ref=e61]
+        - generic [ref=e63]:
+          - button "Prime offers" [ref=e70]:
+            - generic:
+              - generic:
+                - img
+          - generic [ref=e72]:
+            - generic [ref=e73]:
+              - button "Log In" [ref=e75]:
+                - generic [ref=e77]: Log In
+              - button "Sign Up" [ref=e79]:
+                - generic [ref=e81]: Sign Up
+            - button "User Menu" [ref=e85]:
+              - button "User Menu" [ref=e86]:
+                - generic:
+                  - generic:
+                    - img
+    - generic [ref=e87]:
+      - complementary [ref=e89]:
+        - generic [ref=e92]:
+          - button "Collapse Side Nav" [ref=e95]:
+            - generic:
+              - generic:
+                - img
+          - navigation "Left Navigation" [ref=e97]:
+            - group "Live Channels" [ref=e101]:
+              - heading "Live Channels" [level=3] [ref=e103]
+              - generic [ref=e104]:
+                - link "HasanAbi Just Chatting Live 34.1K viewers" [ref=e108] [cursor=pointer]:
+                  - /url: /hasanabi
+                  - generic [ref=e112]:
+                    - generic [ref=e113]:
+                      - paragraph [ref=e115]: HasanAbi
+                      - paragraph [ref=e117]: Just Chatting
+                    - generic [ref=e119]:
+                      - paragraph [ref=e121]: Live
+                      - generic [ref=e122]:
+                        - text: 34.1K
+                        - paragraph [ref=e123]: 34.1K viewers
+                - link "FroggerOW Overwatch Live 5.5K viewers" [ref=e127] [cursor=pointer]:
+                  - /url: /froggerow
+                  - generic [ref=e131]:
+                    - generic [ref=e132]:
+                      - paragraph [ref=e134]: FroggerOW
+                      - paragraph [ref=e136]: Overwatch
+                    - generic [ref=e138]:
+                      - paragraph [ref=e140]: Live
+                      - generic [ref=e141]:
+                        - text: 5.5K
+                        - paragraph [ref=e142]: 5.5K viewers
+                - link "zackrawrr Just Chatting Live 43.7K viewers" [ref=e146] [cursor=pointer]:
+                  - /url: /zackrawrr
+                  - generic [ref=e150]:
+                    - generic [ref=e151]:
+                      - paragraph [ref=e153]: zackrawrr
+                      - paragraph [ref=e155]: Just Chatting
+                    - generic [ref=e157]:
+                      - paragraph [ref=e159]: Live
+                      - generic [ref=e160]:
+                        - text: 43.7K
+                        - paragraph [ref=e161]: 43.7K viewers
+                - link "summit1g Rust Live 9.7K viewers" [ref=e165] [cursor=pointer]:
+                  - /url: /summit1g
+                  - generic [ref=e169]:
+                    - generic [ref=e170]:
+                      - paragraph [ref=e172]: summit1g
+                      - paragraph [ref=e174]: Rust
+                    - generic [ref=e176]:
+                      - paragraph [ref=e178]: Live
+                      - generic [ref=e179]:
+                        - text: 9.7K
+                        - paragraph [ref=e180]: 9.7K viewers
+                - link "Aspen Overwatch Live 7.7K viewers" [ref=e184] [cursor=pointer]:
+                  - /url: /aspen
+                  - generic [ref=e188]:
+                    - generic [ref=e189]:
+                      - paragraph [ref=e191]: Aspen
+                      - paragraph [ref=e193]: Overwatch
+                    - generic [ref=e195]:
+                      - paragraph [ref=e197]: Live
+                      - generic [ref=e198]:
+                        - text: 7.7K
+                        - paragraph [ref=e199]: 7.7K viewers
+                - link "Swiftor PRAGMATA Live 165 viewers" [ref=e203] [cursor=pointer]:
+                  - /url: /swiftor
+                  - generic [ref=e207]:
+                    - generic [ref=e208]:
+                      - paragraph [ref=e210]: Swiftor
+                      - paragraph [ref=e212]: PRAGMATA
+                    - generic [ref=e214]:
+                      - paragraph [ref=e216]: Live
+                      - generic [ref=e217]:
+                        - text: "165"
+                        - paragraph [ref=e218]: 165 viewers
+                - link "ironmouse Just Chatting Live 3.6K viewers" [ref=e222] [cursor=pointer]:
+                  - /url: /ironmouse
+                  - generic [ref=e226]:
+                    - generic [ref=e227]:
+                      - paragraph [ref=e229]: ironmouse
+                      - paragraph [ref=e231]: Just Chatting
+                    - generic [ref=e233]:
+                      - paragraph [ref=e235]: Live
+                      - generic [ref=e236]:
+                        - text: 3.6K
+                        - paragraph [ref=e237]: 3.6K viewers
+                - link "Rainbow6 Rainbow Six Siege Live 23.4K viewers" [ref=e241] [cursor=pointer]:
+                  - /url: /rainbow6
+                  - generic [ref=e245]:
+                    - generic [ref=e246]:
+                      - paragraph [ref=e248]: Rainbow6
+                      - paragraph [ref=e250]: Rainbow Six Siege
+                    - generic [ref=e252]:
+                      - paragraph [ref=e254]: Live
+                      - generic [ref=e255]:
+                        - text: 23.4K
+                        - paragraph [ref=e256]: 23.4K viewers
+                - link "mooda Rainbow Six Siege Live 10.3K viewers" [ref=e260] [cursor=pointer]:
+                  - /url: /mooda
+                  - generic [ref=e264]:
+                    - generic [ref=e265]:
+                      - paragraph [ref=e267]: mooda
+                      - paragraph [ref=e269]: Rainbow Six Siege
+                    - generic [ref=e271]:
+                      - paragraph [ref=e273]: Live
+                      - generic [ref=e274]:
+                        - text: 10.3K
+                        - paragraph [ref=e275]: 10.3K viewers
+                - link "Agent00 IRL Live 7K viewers" [ref=e279] [cursor=pointer]:
+                  - /url: /agent00
+                  - generic [ref=e283]:
+                    - generic [ref=e284]:
+                      - paragraph [ref=e286]: Agent00
+                      - paragraph [ref=e288]: IRL
+                    - generic [ref=e290]:
+                      - paragraph [ref=e292]: Live
+                      - generic [ref=e293]:
+                        - text: 7K
+                        - paragraph [ref=e294]: 7K viewers
+      - main [ref=e295]:
+        - region "Main Content" [ref=e300]:
+          - heading "Browse" [level=1] [ref=e302]
+          - generic [ref=e304]:
+            - link "Games" [ref=e307] [cursor=pointer]:
+              - /url: /directory/gaming
+              - paragraph [ref=e310]: Games
+            - link "IRL" [ref=e314] [cursor=pointer]:
+              - /url: /directory/irl
+              - paragraph [ref=e317]: IRL
+            - link "Music & DJs" [ref=e321] [cursor=pointer]:
+              - /url: /directory/music
+              - paragraph [ref=e324]: Music & DJs
+            - link "Creative" [ref=e328] [cursor=pointer]:
+              - /url: /directory/creative
+              - paragraph [ref=e331]: Creative
+            - link "Esports" [ref=e335] [cursor=pointer]:
+              - /url: /directory/esports
+              - paragraph [ref=e338]: Esports
+          - generic [ref=e340]:
+            - tablist [ref=e344]:
+              - tab "Categories" [ref=e345] [cursor=pointer]:
+                - generic [ref=e348]: Categories
+              - tab "Live Channels" [selected] [ref=e349] [cursor=pointer]:
+                - generic [ref=e352]: Live Channels
+            - region "Filter & Sort Options" [ref=e355]:
+              - generic [ref=e356]:
+                - generic [ref=e357]:
+                  - button "Language" [ref=e359]:
+                    - generic [ref=e360]:
+                      - generic [ref=e361]: Language
+                      - img [ref=e365]
+                  - generic [ref=e371]:
+                    - generic [ref=e372]:
+                      - generic [ref=e373]: Search
+                      - generic [ref=e375]:
+                        - img [ref=e378]
+                        - combobox "Search Tags" [ref=e380]
+                    - paragraph [ref=e381]:
+                      - status
+                - generic [ref=e382]:
+                  - generic [ref=e383]: Sort by
+                  - combobox "Sort by" [ref=e386]:
+                    - generic [ref=e387]:
+                      - generic [ref=e388]: Recommended For You
+                      - img [ref=e392]
+          - generic [ref=e396]:
+            - generic [ref=e410]:
+              - paragraph [ref=e411]
+              - paragraph [ref=e415]
+              - paragraph [ref=e419]
+            - generic [ref=e436]:
+              - paragraph [ref=e437]
+              - paragraph [ref=e441]
+              - paragraph [ref=e445]
+            - generic [ref=e462]:
+              - paragraph [ref=e463]
+              - paragraph [ref=e467]
+              - paragraph [ref=e471]
+            - generic [ref=e488]:
+              - paragraph [ref=e489]
+              - paragraph [ref=e493]
+              - paragraph [ref=e497]
+            - generic [ref=e514]:
+              - paragraph [ref=e515]
+              - paragraph [ref=e519]
+              - paragraph [ref=e523]
+            - generic [ref=e540]:
+              - paragraph [ref=e541]
+              - paragraph [ref=e545]
+              - paragraph [ref=e549]
+            - generic [ref=e566]:
+              - paragraph [ref=e567]
+              - paragraph [ref=e571]
+              - paragraph [ref=e575]
+            - generic [ref=e592]:
+              - paragraph [ref=e593]
+              - paragraph [ref=e597]
+              - paragraph [ref=e601]
+            - generic [ref=e618]:
+              - paragraph [ref=e619]
+              - paragraph [ref=e623]
+              - paragraph [ref=e627]
+            - generic [ref=e644]:
+              - paragraph [ref=e645]
+              - paragraph [ref=e649]
+              - paragraph [ref=e653]
+            - generic [ref=e670]:
+              - paragraph [ref=e671]
+              - paragraph [ref=e675]
+              - paragraph [ref=e679]
+            - generic [ref=e696]:
+              - paragraph [ref=e697]
+              - paragraph [ref=e701]
+              - paragraph [ref=e705]
+            - generic [ref=e722]:
+              - paragraph [ref=e723]
+              - paragraph [ref=e727]
+              - paragraph [ref=e731]
+            - generic [ref=e748]:
+              - paragraph [ref=e749]
+              - paragraph [ref=e753]
+              - paragraph [ref=e757]
+            - generic [ref=e774]:
+              - paragraph [ref=e775]
+              - paragraph [ref=e779]
+              - paragraph [ref=e783]
+            - generic [ref=e800]:
+              - paragraph [ref=e801]
+              - paragraph [ref=e805]
+              - paragraph [ref=e809]
+            - generic [ref=e826]:
+              - paragraph [ref=e827]
+              - paragraph [ref=e831]
+              - paragraph [ref=e835]
+            - generic [ref=e852]:
+              - paragraph [ref=e853]
+              - paragraph [ref=e857]
+              - paragraph [ref=e861]
+            - generic [ref=e878]:
+              - paragraph [ref=e879]
+              - paragraph [ref=e883]
+              - paragraph [ref=e887]
+            - generic [ref=e904]:
+              - paragraph [ref=e905]
+              - paragraph [ref=e909]
+              - paragraph [ref=e913]
+    - contentinfo
+  - status [ref=e918]
+  - alert [ref=e919]

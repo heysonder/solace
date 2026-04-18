@@ -4,6 +4,7 @@ import { ensureValidTwitchTokens, applyCookieDescriptors } from '@/lib/auth/twit
 const TWITCH_GQL_URL = 'https://gql.twitch.tv/gql';
 const TWITCH_PUBLIC_CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
 const PLAYBACK_TOKEN_SHA256 = '0828119ded1c13477966434e15800ff57ddacf13ba1911c129dc2200705b0712';
+const TWITCH_PLAYER_TYPE = 'site';
 
 // In-memory cache with 30s TTL, keyed by "channel" or "channel:userId"
 const cache = new Map<string, { data: PlaybackData; expiresAt: number }>();
@@ -36,7 +37,7 @@ async function fetchPlaybackToken(channel: string, userAccessToken?: string): Pr
       login: channel,
       isVod: false,
       vodID: '',
-      playerType: 'thunderdome',
+      playerType: TWITCH_PLAYER_TYPE,
     },
   });
 

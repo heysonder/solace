@@ -30,10 +30,10 @@ export default function QualitySelector({ levels, currentIndex, onSelect }: Qual
     : levels.find(l => l.index === currentIndex)?.label ?? 'Auto';
 
   return (
-    <div ref={containerRef} className="absolute top-3 right-3 z-10">
+    <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="px-2 py-1 text-xs font-medium text-white bg-surface/80 backdrop-blur-sm rounded hover:bg-surface/90 transition-colors"
+        className="px-2 py-1 text-xs font-medium text-white bg-white/15 backdrop-blur-sm rounded hover:bg-white/25 transition-colors"
       >
         {currentLabel}
       </button>

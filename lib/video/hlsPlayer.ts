@@ -9,7 +9,7 @@ export interface QualityLevel {
 }
 
 const HLS_CONFIG: Partial<HlsConfig> = {
-  lowLatencyMode: true,
+  lowLatencyMode: false,
   backBufferLength: 30,
   maxBufferLength: 10,
   maxMaxBufferLength: 30,

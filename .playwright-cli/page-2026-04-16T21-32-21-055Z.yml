@@ -1,0 +1,21 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "solace." [ref=e5] [cursor=pointer]:
+        - /url: /
+      - textbox "go to channel…" [ref=e7]
+      - button "sign in" [ref=e9] [cursor=pointer]:
+        - img [ref=e10]
+        - generic [ref=e13]: sign in
+  - main [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - heading "live now" [level=1] [ref=e17]
+        - link "Buy me a coffee on Ko-fi" [ref=e18] [cursor=pointer]:
+          - /url: https://ko-fi.com/chasemarsh
+          - generic [ref=e19]: ☕
+          - generic: buy me a coffee
+      - generic [ref=e20]:
+        - generic [ref=e21]: 📺
+        - heading "no streams found" [level=2] [ref=e22]
+        - paragraph [ref=e23]: try refreshing the page or check your connection.

@@ -217,6 +217,58 @@ a:focus-visible {
   }
 }
 
+/* Player volume slider */
+.player-volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.player-volume-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.player-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  margin-top: -4px;
+  cursor: pointer;
+  transition: transform 100ms ease;
+}
+
+.player-volume-slider:hover::-webkit-slider-thumb {
+  transform: scale(1.2);
+}
+
+.player-volume-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  border: none;
+}
+
+.player-volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  cursor: pointer;
+}
+
+.player-volume-slider:hover::-moz-range-thumb {
+  transform: scale(1.2);
+}
+
 /* Browser Compatibility Enhancements */
 
 /* Backdrop filter fallbacks for Firefox and older browsers */
