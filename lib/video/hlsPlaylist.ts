@@ -7,7 +7,7 @@
  * The ad content lives inside DISCONTINUITY blocks in the media playlist.
  */
 
-const AD_DATERANGE_PATTERN = /^#EXT-X-DATERANGE:.*(?:CLASS="twitch-stitched-ad"|ID="stitched-ad|CLASS="twitch-ad|stitched-ad)/i;
+const AD_DATERANGE_PATTERN = /^#EXT-X-DATERANGE:.*(?:CLASS="twitch-stitched-ad"|ID="stitched-ad|CLASS="twitch-ad"|stitched-ad|X-TV-TWITCH-AD-|MIDROLL|midroll)/i;
 const AD_SCTE35_OUT_PATTERN = /^#EXT-X-SCTE35-OUT/i;
 const AD_SCTE35_IN_PATTERN = /^#EXT-X-SCTE35-IN/i;
 const AD_CUE_OUT_PATTERN = /^#EXT-X-CUE-OUT/i;
@@ -17,6 +17,77 @@ const DISCONTINUITY_PATTERN = /^#EXT-X-DISCONTINUITY$/;
 const PREFETCH_PATTERN = /^#EXT-X-TWITCH-PREFETCH:/;
 const EXTINF_PATTERN = /^#EXTINF:([0-9.]+)/;
 const DATERANGE_DURATION_PATTERN = /DURATION=([0-9.]+)/;
+const LIVE_EXTINF_PATTERN = /^#EXTINF:[0-9.]+,live\b/i;
+const AD_TRACKING_URL_PATTERNS = [
+  /(X-TV-TWITCH-AD-URL=")(?:[^"]*)(")/g,
+  /(X-TV-TWITCH-AD-CLICK-TRACKING-URL=")(?:[^"]*)(")/g,
+] as const;
+
+function sanitizeAdMetadata(line: string): string {
+  let sanitized = line;
+  for (const pattern of AD_TRACKING_URL_PATTERNS) {
+    sanitized = sanitized.replace(pattern, '$1https://twitch.tv$2');
+  }
+  return sanitized;
+}
+
+function stripResidualAdSegments(lines: string[]): string[] {
+  const output: string[] = [];
+  let pendingExtinf: string | null = null;
+
+  for (const rawLine of lines) {
+    const line = sanitizeAdMetadata(rawLine);
+
+    if (PREFETCH_PATTERN.test(line)) {
+      continue;
+    }
+
+    if (AD_DATERANGE_PATTERN.test(line)) {
+      continue;
+    }
+
+    if (
+      AD_SCTE35_OUT_PATTERN.test(line) ||
+      AD_SCTE35_IN_PATTERN.test(line) ||
+      AD_CUE_OUT_PATTERN.test(line) ||
+      AD_CUE_OUT_CONT_PATTERN.test(line) ||
+      AD_CUE_IN_PATTERN.test(line)
+    ) {
+      continue;
+    }
+
+    if (EXTINF_PATTERN.test(line)) {
+      pendingExtinf = line;
+      continue;
+    }
+
+    if (!line.startsWith('#') && line.trim().length > 0) {
+      if (pendingExtinf) {
+        if (LIVE_EXTINF_PATTERN.test(pendingExtinf)) {
+          output.push(pendingExtinf);
+          output.push(line);
+        }
+        pendingExtinf = null;
+      } else {
+        output.push(line);
+      }
+      continue;
+    }
+
+    if (pendingExtinf) {
+      output.push(pendingExtinf);
+      pendingExtinf = null;
+    }
+
+    output.push(line);
+  }
+
+  if (pendingExtinf) {
+    output.push(pendingExtinf);
+  }
+
+  return output;
+}
 
 /**
  * Strip ad segments from a Twitch HLS media playlist.
@@ -29,8 +100,10 @@ const DATERANGE_DURATION_PATTERN = /DURATION=([0-9.]+)/;
  *   - a second DISCONTINUITY after entering ad mode (bounds the ad region)
  */
 export function stripAdSegments(playlistText: string): string {
-  const lines = playlistText.split('\n');
+  const normalizedText = playlistText.replace(/\r/g, '');
+  const lines = normalizedText.split('\n');
   const output: string[] = [];
+  let sawAdMarkers = false;
 
   let inAd = false;
   let adDurationTarget = 0;
@@ -45,9 +118,10 @@ export function stripAdSegments(playlistText: string): string {
   };
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = sanitizeAdMetadata(lines[i]);
 
     if (AD_DATERANGE_PATTERN.test(line)) {
+      sawAdMarkers = true;
       inAd = true;
       const match = line.match(DATERANGE_DURATION_PATTERN);
       adDurationTarget = match ? parseFloat(match[1]) : 0;
@@ -61,6 +135,7 @@ export function stripAdSegments(playlistText: string): string {
       AD_CUE_OUT_PATTERN.test(line) ||
       AD_CUE_OUT_CONT_PATTERN.test(line)
     ) {
+      sawAdMarkers = true;
       inAd = true;
       adDurationTarget = 0;
       adDurationElapsed = 0;
@@ -88,6 +163,11 @@ export function stripAdSegments(playlistText: string): string {
 
       const extinf = line.match(EXTINF_PATTERN);
       if (extinf) {
+        if (LIVE_EXTINF_PATTERN.test(line) && !adDurationTarget) {
+          exitAd();
+          output.push(line);
+          continue;
+        }
         adDurationElapsed += parseFloat(extinf[1]);
         continue;
       }
@@ -107,7 +187,7 @@ export function stripAdSegments(playlistText: string): string {
     output.push(line);
   }
 
-  return output.join('\n');
+  return (sawAdMarkers ? stripResidualAdSegments(output) : output).join('\n');
 }
 
 /**
