@@ -2,10 +2,11 @@
   "name": "modern-twitch",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.29.1",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "vercel-build": "npm run test && npm run build",
+    "vercel-build": "pnpm test && pnpm build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint .",

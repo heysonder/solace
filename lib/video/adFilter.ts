@@ -29,6 +29,19 @@ function isAlreadyProxied(url: string): boolean {
   return url.startsWith(`${normalizedBase}?url=`) || url.startsWith(`${normalizedBase}/?url=`);
 }
 
+function playlistAlreadyUsesProxyRoutes(playlistText: string): boolean {
+  if (playlistText.includes('/api/proxy?url=')) {
+    return true;
+  }
+
+  if (!CUSTOM_PROXY_BASE) {
+    return false;
+  }
+
+  const normalizedBase = CUSTOM_PROXY_BASE.replace(/\/+$/, '');
+  return playlistText.includes(`${normalizedBase}/?url=`) || playlistText.includes(`${normalizedBase}?url=`);
+}
+
 export function createAdFilterLoader(): typeof Hls.DefaultConfig.loader {
   const DefaultLoader = Hls.DefaultConfig.loader;
 
@@ -53,7 +66,10 @@ export function createAdFilterLoader(): typeof Hls.DefaultConfig.loader {
 
       callbacks.onSuccess = (response: any, stats: any, ctx: any, networkDetails: any) => {
         if (typeof response.data === 'string') {
-          if (response.data.includes('#EXTM3U')) {
+          // Playlists served by /api/proxy already have nested URIs rewritten.
+          // Rewriting them again here produces `/api/proxy?url=http://localhost/...`
+          // double-wraps that fail the proxy allowlist in Chromium/Firefox.
+          if (response.data.includes('#EXTM3U') && !playlistAlreadyUsesProxyRoutes(response.data)) {
             response.data = rewritePlaylistUrls(response.data, originalUrl);
           }
 

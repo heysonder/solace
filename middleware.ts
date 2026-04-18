@@ -15,7 +15,7 @@ function generateSessionId(): string {
   return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function rateLimit(ip: string, limit: number = 100, windowMs: number = 15 * 60 * 1000): boolean {
+function rateLimit(key: string, limit: number = 100, windowMs: number = 15 * 60 * 1000): boolean {
   const now = Date.now();
   const windowStart = now - windowMs;
 
@@ -26,15 +26,15 @@ function rateLimit(ip: string, limit: number = 100, windowMs: number = 15 * 60 *
     }
   }
 
-  const current = rateLimitMap.get(ip);
+  const current = rateLimitMap.get(key);
 
   if (!current) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+    rateLimitMap.set(key, { count: 1, resetTime: now + windowMs });
     return true;
   }
 
   if (current.resetTime < now) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+    rateLimitMap.set(key, { count: 1, resetTime: now + windowMs });
     return true;
   }
 
@@ -83,7 +83,7 @@ export function middleware(request: NextRequest) {
   const csp = [
     "default-src 'self'",
     // unsafe-inline required for Twitch SDK - see CLAUDE.md for justification
-    "script-src 'self' 'unsafe-inline' https://embed.twitch.tv https://player.twitch.tv https://www.twitch.tv https://static.twitchcdn.net https://va.vercel-scripts.com https://vercel.live",
+    `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} https://embed.twitch.tv https://player.twitch.tv https://www.twitch.tv https://static.twitchcdn.net https://va.vercel-scripts.com https://vercel.live`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https: blob:",
     "font-src 'self' https://fonts.gstatic.com",
@@ -94,19 +94,36 @@ export function middleware(request: NextRequest) {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "upgrade-insecure-requests"
   ];
+
+  // Safari can aggressively upgrade same-origin localhost asset requests
+  // when this directive is present on plain HTTP, which breaks local CSS/JS.
+  if (request.nextUrl.protocol === 'https:') {
+    csp.push("upgrade-insecure-requests");
+  }
+
   response.headers.set('Content-Security-Policy', csp.join('; '));
 
   // SECURITY: Rate limiting for API routes
   if (request.nextUrl.pathname.startsWith('/api/')) {
     const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
+    const path = request.nextUrl.pathname;
 
-    // Higher limits for auth endpoints, lower for others
-    const isAuthEndpoint = request.nextUrl.pathname.startsWith('/api/auth/');
-    const limit = isAuthEndpoint ? 20 : 100;
+    // Keep HLS proxy traffic isolated from the rest of the app.
+    // Chromium/Firefox request many playlists and segments through /api/proxy,
+    // which can legitimately exceed the default API limit during playback.
+    let bucket = 'api';
+    let limit = 100;
 
-    if (!rateLimit(ip, limit)) {
+    if (path.startsWith('/api/proxy')) {
+      bucket = 'proxy';
+      limit = 5000;
+    } else if (path.startsWith('/api/auth/')) {
+      bucket = 'auth';
+      limit = 20;
+    }
+
+    if (!rateLimit(`${ip}:${bucket}`, limit)) {
       return new NextResponse('Rate limit exceeded', { status: 429 });
     }
   }

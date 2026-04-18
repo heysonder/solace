@@ -5,6 +5,7 @@ import Hls from 'hls.js';
 import { usePreferNativeHLS } from '@/hooks/usePlatform';
 import { initHlsPlayer, destroyHlsPlayer, getQualityLevels, setQualityLevel, type QualityLevel } from '@/lib/video/hlsPlayer';
 import { fetchPlaybackToken } from '@/lib/video/twitchPlayback';
+import { proxyUrl } from '@/lib/video/hlsPlaylist';
 import QualitySelector from './QualitySelector';
 import VideoControls from './VideoControls';
 
@@ -62,9 +63,9 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
         if (cancelled) return;
 
         if (preferNative && el.canPlayType('application/vnd.apple.mpegurl')) {
-          // Safari: native HLS, routed through /api/proxy so ad segments
-          // get stripped and variant/segment URLs stay inside the proxy.
-          el.src = `/api/proxy?url=${encodeURIComponent(m3u8Url)}`;
+          // Safari: native HLS should use the same proxy target selection as
+          // the hls.js path so external proxy deployments work consistently.
+          el.src = proxyUrl(m3u8Url);
           el.addEventListener('loadeddata', () => {
             if (!cancelled) setLoading(false);
           }, { once: true });
