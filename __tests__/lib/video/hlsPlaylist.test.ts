@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasAdSegments, rewritePlaylistUrls, stripAdSegments } from '@/lib/video/hlsPlaylist';
+import { hasAdSegments, proxyUrl, rewritePlaylistUrls, stripAdSegments } from '@/lib/video/hlsPlaylist';
 
 describe('hlsPlaylist', () => {
   describe('hasAdSegments', () => {
@@ -20,6 +20,16 @@ describe('hlsPlaylist', () => {
 
     it('detects CUE-OUT-CONT when joining during an ad break', () => {
       expect(hasAdSegments('#EXTM3U\n#EXT-X-CUE-OUT-CONT:ElapsedTime=15,Duration=30\n')).toBe(true);
+    });
+
+    it('detects ad dateranges that only expose Twitch ad tracking metadata', () => {
+      const m3u8 = [
+        '#EXTM3U',
+        '#EXT-X-DATERANGE:ID="ad-1",START-DATE="2026-01-01T00:00:00Z",X-TV-TWITCH-AD-URL="https://ads.example/ad",X-TV-TWITCH-AD-POD-LENGTH="1"',
+        '#EXTINF:2.0,live',
+        'segment.ts',
+      ].join('\n');
+      expect(hasAdSegments(m3u8)).toBe(true);
     });
 
     it('returns false for clean playlists', () => {
@@ -108,6 +118,27 @@ describe('hlsPlaylist', () => {
       expect(out).toContain('#EXT-X-DISCONTINUITY');
     });
 
+    it('drops LL-HLS prefetch lines and non-live ad segments after stitched-ad markers', () => {
+      const input = [
+        '#EXTM3U',
+        '#EXT-X-DATERANGE:ID="stitched-ad-3",CLASS="twitch-stitched-ad",X-TV-TWITCH-AD-URL="https://ads.example/ad"',
+        '#EXTINF:2.0,ad',
+        'ad-1.ts',
+        '#EXT-X-TWITCH-PREFETCH:ad-prefetch.ts',
+        '#EXT-X-DISCONTINUITY',
+        '#EXTINF:2.0,live',
+        'live-1.ts',
+        '#EXT-X-TWITCH-PREFETCH:live-prefetch.ts',
+      ].join('\n');
+
+      const out = stripAdSegments(input);
+      expect(out).not.toContain('ad-1.ts');
+      expect(out).not.toContain('ad-prefetch.ts');
+      expect(out).not.toContain('live-prefetch.ts');
+      expect(out).toContain('live-1.ts');
+      expect(out).not.toContain('X-TV-TWITCH-AD-URL');
+    });
+
     it('leaves clean playlists untouched (all segments preserved)', () => {
       const input = [
         '#EXTM3U',
@@ -145,7 +176,7 @@ describe('hlsPlaylist', () => {
         'https://video-edge.twitch.tv/seg.ts',
       ].join('\n');
       const out = rewritePlaylistUrls(input);
-      expect(out).toContain('/api/proxy?url=https%3A%2F%2Fvideo-edge.twitch.tv%2Fseg.ts');
+      expect(out).toContain(proxyUrl('https://video-edge.twitch.tv/seg.ts'));
     });
 
     it('resolves relative URIs against baseUrl before wrapping', () => {
