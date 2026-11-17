@@ -255,6 +255,7 @@ export default function VideoControls({
             onKeyUp={commitScrub}
             onBlur={commitScrub}
             className="player-volume-slider w-full h-1 cursor-pointer mb-2"
+            style={{ '--progress': `${elapsed > 0 ? Math.min(100, ((scrub ?? position) / elapsed) * 100) : 100}%` } as React.CSSProperties}
           />
         )}
         <div className="flex items-center gap-3">
@@ -276,6 +277,7 @@ export default function VideoControls({
               value={sliderDisplay}
               onChange={handleVolume}
               className="player-volume-slider w-20 h-1 cursor-pointer"
+              style={{ '--progress': `${sliderDisplay * 100}%` } as React.CSSProperties}
             />
           </div>
 

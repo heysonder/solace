@@ -230,7 +230,12 @@ a:focus-visible {
 .player-volume-slider::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.3);
+  /* Solid up to the thumb, translucent after it. --progress is set inline. */
+  background: linear-gradient(
+    to right,
+    #fff var(--progress, 0%),
+    rgba(255, 255, 255, 0.3) var(--progress, 0%)
+  );
 }
 
 .player-volume-slider::-webkit-slider-thumb {
@@ -252,7 +257,11 @@ a:focus-visible {
 .player-volume-slider::-moz-range-track {
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.3);
+  background: linear-gradient(
+    to right,
+    #fff var(--progress, 0%),
+    rgba(255, 255, 255, 0.3) var(--progress, 0%)
+  );
   border: none;
 }
 

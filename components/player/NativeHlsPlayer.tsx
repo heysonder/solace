@@ -141,16 +141,15 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
         const position = mode.type === 'live'
           ? duration
           : Math.min(Math.max(0, el.currentTime), duration);
-        // Rate 0 at the live edge keeps the widget from running past the end
-        // between updates; rewound playback advances normally.
+        // The rate must be non-zero or the call throws and nothing is shown;
+        // paused state is conveyed by playbackState instead.
         session.setPositionState({
           duration,
           position,
-          playbackRate: mode.type === 'live' || el.paused ? 0 : el.playbackRate || 1,
+          playbackRate: el.playbackRate || 1,
         });
-      } catch {
-        // Some browsers reject a zero rate or clearing the state; the
-        // metadata above still applies.
+      } catch (err) {
+        console.warn('[NativeHlsPlayer] Could not update Now Playing position:', err);
       }
     };
 
