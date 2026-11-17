@@ -8,6 +8,10 @@
  */
 
 const AD_DATERANGE_PATTERN = /^#EXT-X-DATERANGE:.*(?:CLASS="twitch-stitched-ad"|ID="stitched-ad|CLASS="twitch-ad"|stitched-ad|X-TV-TWITCH-AD-[A-Z0-9-]+|MIDROLL|PREROLL|COMMERCIAL|SCTE35-OUT|X-TV-TWITCH-LIVE-SEQUENCE|X-TV-TWITCH-ELAPSED-SECS)/i;
+// Twitch "multi ad format" markers describe ads the official player renders
+// client-side (overlays / side-by-side). The segments under them are still the
+// live broadcast, so the marker is metadata only: drop the tag, keep the video.
+const METADATA_ONLY_AD_DATERANGE_PATTERN = /^#EXT-X-DATERANGE:.*CLASS="twitch-maf-ad"/i;
 const AD_SCTE35_PATTERN = /^#EXT-X-(?:SCTE35|SPLICEPOINT-SCTE35|OATCLS-SCTE35)/i;
 const AD_SCTE35_OUT_PATTERN = /^#EXT-X-SCTE35-OUT/i;
 const AD_SCTE35_IN_PATTERN = /^#EXT-X-SCTE35-IN/i;
@@ -23,6 +27,7 @@ const CUE_OUT_ELAPSED_PATTERN = /(?:ElapsedTime|ELAPSED)=([0-9.]+)/;
 const CUE_OUT_INLINE_DURATION_PATTERN = /^#EXT-X-CUE-OUT:([0-9.]+)/i;
 const LIVE_EXTINF_PATTERN = /^#EXTINF:[0-9.]+,live\b/i;
 const AD_SEGMENT_HINT_PATTERN = /(?:^|[,/_.?&=-])(?:ad|ads|advert|advertisement|commercial|stitched-ad|stitched_ad|preroll|pre-roll|midroll|mid-roll)(?:$|[,/_.?&=-])/i;
+const MAX_READABLE_PATH_PART_LENGTH = 64;
 const AD_RESOURCE_HOSTS = [
   'ads.twitch.tv',
   'twitchads.com',
@@ -44,7 +49,15 @@ function sanitizeAdMetadata(line: string): string {
   return sanitized;
 }
 
+function isMetadataOnlyAdMarker(line: string): boolean {
+  return METADATA_ONLY_AD_DATERANGE_PATTERN.test(line);
+}
+
 function isAdStartMarker(line: string): boolean {
+  if (isMetadataOnlyAdMarker(line)) {
+    return false;
+  }
+
   return AD_DATERANGE_PATTERN.test(line) ||
     AD_SCTE35_OUT_PATTERN.test(line) ||
     AD_CUE_OUT_PATTERN.test(line) ||
@@ -88,7 +101,13 @@ export function isLikelyAdResourceUrl(value: string): boolean {
     if (AD_RESOURCE_HOSTS.some(host => hostname === host || hostname.endsWith(`.${host}`))) {
       return true;
     }
-    return AD_SEGMENT_HINT_PATTERN.test(`${url.pathname}${url.search}`);
+    // Twitch segment URLs carry long opaque base64url tokens that contain
+    // "-ad_"-style substrings by chance. Only readable path parts are hints.
+    const readablePath = url.pathname
+      .split('/')
+      .filter(part => part.length <= MAX_READABLE_PATH_PART_LENGTH)
+      .join('/');
+    return AD_SEGMENT_HINT_PATTERN.test(readablePath);
   } catch {
     return AD_SEGMENT_HINT_PATTERN.test(trimmed);
   }
@@ -105,7 +124,7 @@ function stripResidualAdSegments(lines: string[]): string[] {
       continue;
     }
 
-    if (AD_DATERANGE_PATTERN.test(line)) {
+    if (AD_DATERANGE_PATTERN.test(line) || isMetadataOnlyAdMarker(line)) {
       continue;
     }
 
@@ -153,6 +172,7 @@ function stripResidualAdSegments(lines: string[]): string[] {
  * Strategy: when an ad-marker tag is seen (DATERANGE stitched-ad, SCTE35-OUT,
  * CUE-OUT, CUE-OUT-CONT), enter ad mode. Exit on any of:
  *   - explicit close tag (SCTE35-IN, CUE-IN)
+ *   - a segment labelled `live` (Twitch titles stitched ad segments otherwise)
  *   - accumulated EXTINF durations meeting/exceeding a DATERANGE DURATION=
  *   - a second DISCONTINUITY after entering ad mode (bounds the ad region)
  */
@@ -180,6 +200,10 @@ export function stripAdSegments(playlistText: string): string {
 
   for (let i = 0; i < lines.length; i++) {
     const line = sanitizeAdMetadata(lines[i]);
+
+    if (isMetadataOnlyAdMarker(line)) {
+      continue;
+    }
 
     if (isAdStartMarker(line)) {
       sawAdMarkers = true;
@@ -217,7 +241,9 @@ export function stripAdSegments(playlistText: string): string {
 
       const extinf = line.match(EXTINF_PATTERN);
       if (extinf) {
-        if (LIVE_EXTINF_PATTERN.test(line) && !adDurationTarget) {
+        // A segment Twitch labels `live` is never ad content, whatever the
+        // surrounding markers claim. Dropping these empties the playlist.
+        if (LIVE_EXTINF_PATTERN.test(line)) {
           exitAd();
           output.push(line);
           continue;

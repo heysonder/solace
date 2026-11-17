@@ -32,6 +32,14 @@ export function initHlsPlayer(
   const MAX_MEDIA_RECOVERIES = 3;
   const MAX_NETWORK_RECOVERIES = 3;
 
+  // Recovery budgets are per incident, not per session: once media is flowing
+  // again a later hiccup (hours in, or after a long pause) starts fresh instead
+  // of tipping the player into the iframe fallback.
+  hls.on(Hls.Events.FRAG_BUFFERED, () => {
+    mediaErrorRecoveries = 0;
+    networkErrorRecoveries = 0;
+  });
+
   hls.on(Hls.Events.ERROR, (_event, data) => {
     if (!data.fatal) return;
 
@@ -67,6 +75,46 @@ export function initHlsPlayer(
   hls.attachMedia(video);
 
   return hls;
+}
+
+/**
+ * Live streams have no rewind buffer, so pausing must not leave hls.js polling
+ * a playlist whose window slides past the paused position (that ends in fatal
+ * errors and an iframe fallback). Stop loading while paused and rejoin at the
+ * live edge on resume. Returns a cleanup function.
+ */
+export function attachLivePauseHandling(hls: Hls, video: HTMLVideoElement): () => void {
+  let stoppedForPause = false;
+
+  const seekToLive = () => {
+    const live = hls.liveSyncPosition;
+    if (typeof live === 'number' && Number.isFinite(live) && Math.abs(video.currentTime - live) > 1) {
+      video.currentTime = live;
+    }
+  };
+
+  const onPause = () => {
+    if (video.ended || video.seeking) return;
+    stoppedForPause = true;
+    hls.stopLoad();
+  };
+
+  const onPlay = () => {
+    if (!stoppedForPause) return;
+    stoppedForPause = false;
+    // The playlist we hold is as old as the pause; refresh it, then jump.
+    hls.once(Hls.Events.LEVEL_UPDATED, seekToLive);
+    hls.startLoad(-1);
+  };
+
+  video.addEventListener('pause', onPause);
+  video.addEventListener('play', onPlay);
+
+  return () => {
+    video.removeEventListener('pause', onPause);
+    video.removeEventListener('play', onPlay);
+    hls.off(Hls.Events.LEVEL_UPDATED, seekToLive);
+  };
 }
 
 export function destroyHlsPlayer(hls: Hls | null): void {

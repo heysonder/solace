@@ -62,6 +62,20 @@ export default function VideoControls({
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
+  // Keep the button in sync when playback is toggled from outside these
+  // controls (media keys, the OS Now Playing widget, autoplay being blocked).
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const sync = () => setPlaying(!v.paused);
+    v.addEventListener('play', sync);
+    v.addEventListener('pause', sync);
+    return () => {
+      v.removeEventListener('play', sync);
+      v.removeEventListener('pause', sync);
+    };
+  }, [videoRef]);
+
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;

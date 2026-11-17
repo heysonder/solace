@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import { usePreferNativeHLS } from '@/hooks/usePlatform';
-import { initHlsPlayer, destroyHlsPlayer, getQualityLevels, setQualityLevel, type QualityLevel } from '@/lib/video/hlsPlayer';
+import { initHlsPlayer, destroyHlsPlayer, attachLivePauseHandling, getQualityLevels, setQualityLevel, type QualityLevel } from '@/lib/video/hlsPlayer';
 import { fetchPlaybackToken } from '@/lib/video/twitchPlayback';
 import { proxyUrl } from '@/lib/video/hlsPlaylist';
 import VideoControls from './VideoControls';
@@ -22,6 +22,7 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [streamTitle, setStreamTitle] = useState('');
   const [gameName, setGameName] = useState('');
+  const [artworkUrl, setArtworkUrl] = useState('');
   const preferNative = usePreferNativeHLS();
 
   useEffect(() => {
@@ -32,6 +33,9 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
         if (!cancelled && data?.liveStream) {
           if (data.liveStream.title) setStreamTitle(data.liveStream.title);
           if (data.liveStream.game_name) setGameName(data.liveStream.game_name);
+        }
+        if (!cancelled && data?.user?.profile_image_url) {
+          setArtworkUrl(data.user.profile_image_url);
         }
       })
       .catch(() => {});
@@ -45,12 +49,64 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
     }
   }, []);
 
+  // OS "Now Playing" (macOS Control Center, media keys, lock screen).
+  // Without explicit metadata the browser shows a guessed entry and drops it
+  // when the MSE source changes state, so own it and re-assert on every
+  // playback transition.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || typeof navigator === 'undefined' || !('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') {
+      return;
+    }
+    const session = navigator.mediaSession;
+
+    const apply = () => {
+      session.metadata = new MediaMetadata({
+        title: streamTitle || `${channel} — live`,
+        artist: channel,
+        album: gameName || 'Live on Twitch',
+        artwork: artworkUrl ? [{ src: artworkUrl, sizes: '300x300' }] : [],
+      });
+      session.playbackState = el.paused ? 'paused' : 'playing';
+    };
+
+    const setHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
+      try {
+        session.setActionHandler(action, handler);
+      } catch {
+        // Action not supported by this browser
+      }
+    };
+
+    apply();
+    setHandler('play', () => { el.play().catch(() => {}); });
+    setHandler('pause', () => { el.pause(); });
+    // Live stream: no scrubbing or track skipping from the OS widget.
+    setHandler('seekbackward', null);
+    setHandler('seekforward', null);
+    setHandler('seekto', null);
+    setHandler('previoustrack', null);
+    setHandler('nexttrack', null);
+
+    const events = ['play', 'playing', 'pause', 'loadedmetadata', 'durationchange'] as const;
+    events.forEach(name => el.addEventListener(name, apply));
+
+    return () => {
+      events.forEach(name => el.removeEventListener(name, apply));
+      setHandler('play', null);
+      setHandler('pause', null);
+      session.metadata = null;
+      session.playbackState = 'none';
+    };
+  }, [channel, streamTitle, gameName, artworkUrl]);
+
   useEffect(() => {
     // Wait for platform detection before choosing playback engine
     if (preferNative === null || !videoRef.current) return;
 
     let cancelled = false;
     let activeVideo: HTMLVideoElement | null = null;
+    let detachPauseHandling: (() => void) | null = null;
 
     async function setup() {
       const el = videoRef.current;
@@ -71,6 +127,7 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
             if (!cancelled) onFallback();
           });
           hlsRef.current = hls;
+          detachPauseHandling = attachLivePauseHandling(hls, el);
 
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             if (cancelled) return;
@@ -106,6 +163,7 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
 
     return () => {
       cancelled = true;
+      detachPauseHandling?.();
       destroyHlsPlayer(hlsRef.current);
       hlsRef.current = null;
       const el = activeVideo;

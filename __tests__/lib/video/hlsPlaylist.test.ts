@@ -197,6 +197,45 @@ describe('hlsPlaylist', () => {
       expect(out).not.toContain('X-TV-TWITCH-AD-URL');
     });
 
+    it('keeps live segments under client-rendered twitch-maf-ad markers', () => {
+      const marker = '#EXT-X-DATERANGE:ID="maf-ad-1794879113-60000000000",CLASS="twitch-maf-ad",START-DATE="2026-11-17T01:31:53.478Z",PLANNED-DURATION=60.000,END-ON-NEXT=YES,X-TTV-MAF-AD-COMMERCIAL-ID="91b1cc6ed5734dd1bd658313a0c91dc0"';
+      const segments = Array.from({ length: 14 }, (_, i) => [
+        '#EXTINF:2.000,live',
+        `https://edge.hls.ttvnw.net/v1/segment/live-${i}.ts`,
+      ]).flat();
+      const input = ['#EXTM3U', '#EXT-X-TARGETDURATION:6', marker, ...segments].join('\n');
+
+      const out = stripAdSegments(input);
+      for (let i = 0; i < 14; i++) {
+        expect(out).toContain(`live-${i}.ts`);
+      }
+      expect(out).not.toContain('twitch-maf-ad');
+      expect(hasAdSegments(input)).toBe(false);
+    });
+
+    it('never drops live-labelled segments inside a stitched-ad duration window', () => {
+      const input = [
+        '#EXTM3U',
+        '#EXT-X-DATERANGE:ID="stitched-ad-9",CLASS="twitch-stitched-ad",DURATION=30.0',
+        '#EXTINF:2.0,Amazon|123',
+        'ad-1.ts',
+        '#EXTINF:2.0,live',
+        'live-1.ts',
+        '#EXTINF:2.0,live',
+        'live-2.ts',
+      ].join('\n');
+
+      const out = stripAdSegments(input);
+      expect(out).not.toContain('ad-1.ts');
+      expect(out).toContain('#EXTINF:2.0,live\nlive-1.ts');
+      expect(out).toContain('#EXTINF:2.0,live\nlive-2.ts');
+    });
+
+    it('does not treat opaque Twitch segment tokens as ad URLs', () => {
+      const token = `${'Cv'.repeat(40)}-ad_${'Xy'.repeat(40)}`;
+      expect(isLikelyAdResourceUrl(`https://edge.hls.ttvnw.net/v1/segment/${token}.ts`)).toBe(false);
+    });
+
     it('leaves clean playlists untouched (all segments preserved)', () => {
       const input = [
         '#EXTM3U',
