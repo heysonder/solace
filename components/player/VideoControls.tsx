@@ -5,6 +5,24 @@ import { Play, Pause, Volume2, Volume1, VolumeX, Maximize, Minimize } from 'luci
 import QualitySelector from './QualitySelector';
 import type { QualityLevel } from '@/lib/video/hlsPlayer';
 
+export interface RewindControls {
+  /** Broadcast start, epoch ms. */
+  startedAt: number;
+  /** False while playing from the broadcast's VOD rather than the live edge. */
+  isLive: boolean;
+  /** Seek to this many seconds into the broadcast. */
+  onSeek: (seconds: number) => void;
+  onGoLive: () => void;
+}
+
+function formatClock(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}
+
 interface VideoControlsProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   streamTitle?: string;
@@ -12,6 +30,8 @@ interface VideoControlsProps {
   qualityLevels?: QualityLevel[];
   currentQuality?: number;
   onQualityChange?: (index: number) => void;
+  /** Present when the broadcast can be rewound; adds the seek bar. */
+  rewind?: RewindControls;
 }
 
 // Quadratic curve so the slider feels linear to human hearing.
@@ -30,6 +50,7 @@ export default function VideoControls({
   qualityLevels,
   currentQuality = -1,
   onQualityChange,
+  rewind,
 }: VideoControlsProps) {
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(false);
@@ -61,6 +82,61 @@ export default function VideoControls({
     document.addEventListener('fullscreenchange', onFsChange);
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
+
+  // Seek bar state. `elapsed` is how long the broadcast has run, `position`
+  // is where playback is within it; both in seconds.
+  const [elapsed, setElapsed] = useState(0);
+  const [position, setPosition] = useState(0);
+  // Where the thumb sits while dragging, and until a committed seek lands.
+  const [scrub, setScrub] = useState<number | null>(null);
+  const scrubbing = useRef(false);
+  const scrubTarget = useRef<number | null>(null);
+  const settleTimer = useRef<ReturnType<typeof setTimeout>>();
+  const rewindStartedAt = rewind?.startedAt;
+  const rewindIsLive = rewind?.isLive;
+
+  useEffect(() => {
+    if (rewindStartedAt === undefined) return;
+    const v = videoRef.current;
+
+    const tick = () => {
+      const nowElapsed = Math.max(0, (Date.now() - rewindStartedAt) / 1000);
+      const nowPosition = rewindIsLive || !v ? nowElapsed : Math.min(v.currentTime, nowElapsed);
+      setElapsed(nowElapsed);
+      setPosition(nowPosition);
+      // Release the thumb once playback has actually reached the seek target.
+      if (!scrubbing.current) {
+        setScrub(target => (target !== null && Math.abs(nowPosition - target) < 15 ? null : target));
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    v?.addEventListener('timeupdate', tick);
+    v?.addEventListener('seeked', tick);
+    return () => {
+      clearInterval(interval);
+      v?.removeEventListener('timeupdate', tick);
+      v?.removeEventListener('seeked', tick);
+    };
+  }, [videoRef, rewindStartedAt, rewindIsLive]);
+
+  useEffect(() => () => clearTimeout(settleTimer.current), []);
+
+  const commitScrub = useCallback(() => {
+    if (!scrubbing.current) return;
+    scrubbing.current = false;
+    if (scrubTarget.current !== null) rewind?.onSeek(scrubTarget.current);
+    // Never leave the thumb pinned if the seek resolves elsewhere (e.g. to live).
+    clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => setScrub(null), 8000);
+  }, [rewind]);
+
+  const handleGoLive = useCallback(() => {
+    scrubbing.current = false;
+    setScrub(null);
+    rewind?.onGoLive();
+  }, [rewind]);
 
   // Keep the button in sync when playback is toggled from outside these
   // controls (media keys, the OS Now Playing widget, autoplay being blocked).
@@ -161,6 +237,26 @@ export default function VideoControls({
         }`}
         style={{ transition: overlayTransition }}
       >
+        {rewind && (
+          <input
+            type="range"
+            aria-label="Seek within broadcast"
+            min={0}
+            max={Math.max(1, Math.floor(elapsed))}
+            step={1}
+            value={Math.floor(scrub ?? position)}
+            onChange={(e) => {
+              const target = parseFloat(e.target.value);
+              scrubbing.current = true;
+              scrubTarget.current = target;
+              setScrub(target);
+            }}
+            onPointerUp={commitScrub}
+            onKeyUp={commitScrub}
+            onBlur={commitScrub}
+            className="player-volume-slider w-full h-1 cursor-pointer mb-2"
+          />
+        )}
         <div className="flex items-center gap-3">
           {/* Play/Pause */}
           <button onClick={togglePlay} className="text-white hover:text-white/80 transition-colors">
@@ -185,8 +281,28 @@ export default function VideoControls({
 
           <div className="flex-1" />
 
-          {/* LIVE badge */}
-          <span className="px-2 py-0.5 text-xs font-bold bg-red-600 text-white rounded-md">LIVE</span>
+          {/* Position within the broadcast, and how far behind live */}
+          {rewind && (
+            <span className="text-white/80 text-xs tabular-nums">
+              {formatClock(scrub ?? position)}
+              {!(rewind.isLive && scrub === null) && elapsed - (scrub ?? position) >= 1 && (
+                <span className="text-white/50"> (-{formatClock(elapsed - (scrub ?? position))})</span>
+              )}
+            </span>
+          )}
+
+          {/* LIVE badge: doubles as "jump to live" while rewound */}
+          {rewind && !rewind.isLive ? (
+            <button
+              onClick={handleGoLive}
+              title="Jump to live"
+              className="px-2 py-0.5 text-xs font-bold bg-white/20 hover:bg-red-600 text-white rounded-md transition-colors"
+            >
+              GO LIVE
+            </button>
+          ) : (
+            <span className="px-2 py-0.5 text-xs font-bold bg-red-600 text-white rounded-md">LIVE</span>
+          )}
 
           {/* Fullscreen */}
           <button onClick={toggleFullscreen} className="text-white hover:text-white/80 transition-colors">

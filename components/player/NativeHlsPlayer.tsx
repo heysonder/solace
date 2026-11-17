@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import { usePreferNativeHLS } from '@/hooks/usePlatform';
 import { initHlsPlayer, destroyHlsPlayer, attachLivePauseHandling, getQualityLevels, setQualityLevel, type QualityLevel } from '@/lib/video/hlsPlayer';
-import { fetchPlaybackToken } from '@/lib/video/twitchPlayback';
+import { fetchPlaybackToken, fetchRewindSource, fetchVodPlaybackUrl, type RewindSource } from '@/lib/video/twitchPlayback';
 import { proxyUrl } from '@/lib/video/hlsPlaylist';
 import VideoControls from './VideoControls';
 
@@ -13,6 +13,19 @@ interface NativeHlsPlayerProps {
   onFallback: () => void;
   className?: string;
 }
+
+// 'live' plays Twitch's live playlist directly. 'rewind' plays the broadcast's
+// in-progress VOD (through /api/proxy, Twitch sends no CORS headers for VODs)
+// starting `start` seconds into the broadcast.
+type PlaybackMode = { type: 'live' } | { type: 'rewind'; start: number };
+
+const LIVE_MODE: PlaybackMode = { type: 'live' };
+// The VOD trails the live edge by roughly 5-15s; seeks closer than this just go live.
+const LIVE_EDGE_MARGIN_SECONDS = 20;
+// Approximate delay between the broadcast and what the live player is showing.
+const LIVE_PLAYBACK_DELAY_SECONDS = 10;
+// Pauses shorter than this rejoin live; longer ones resume where you left off.
+const RESUME_IN_PLACE_AFTER_MS = 10_000;
 
 export default function NativeHlsPlayer({ channel, onFallback, className }: NativeHlsPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -23,7 +36,50 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
   const [streamTitle, setStreamTitle] = useState('');
   const [gameName, setGameName] = useState('');
   const [artworkUrl, setArtworkUrl] = useState('');
+  const [rewindSource, setRewindSource] = useState<RewindSource | null>(null);
+  const [mode, setMode] = useState<PlaybackMode>(LIVE_MODE);
+  const rewindSourceRef = useRef<RewindSource | null>(null);
+  rewindSourceRef.current = rewindSource;
+  const modeRef = useRef<PlaybackMode>(mode);
+  modeRef.current = mode;
   const preferNative = usePreferNativeHLS();
+
+  // Rewind needs hls.js (to load the VOD through the proxy) and a channel that
+  // archives its broadcasts. Without either the player is simply live-only.
+  useEffect(() => {
+    let cancelled = false;
+    setRewindSource(null);
+    setMode(LIVE_MODE);
+    if (!Hls.isSupported()) return;
+
+    fetchRewindSource(channel)
+      .then(source => { if (!cancelled) setRewindSource(source); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [channel]);
+
+  const goLive = useCallback(() => {
+    setMode(current => (current.type === 'live' ? current : LIVE_MODE));
+  }, []);
+
+  const seekTo = useCallback((seconds: number) => {
+    const source = rewindSourceRef.current;
+    if (!source) return;
+
+    const elapsed = (Date.now() - source.startedAt) / 1000;
+    if (seconds >= elapsed - LIVE_EDGE_MARGIN_SECONDS) {
+      goLive();
+      return;
+    }
+
+    const target = Math.max(0, seconds);
+    // Already on the VOD: an ordinary seek, no need to reload the source.
+    if (modeRef.current.type === 'rewind' && hlsRef.current && videoRef.current) {
+      videoRef.current.currentTime = target;
+      return;
+    }
+    setMode({ type: 'rewind', start: target });
+  }, [goLive]);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +124,34 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
         artwork: artworkUrl ? [{ src: artworkUrl, sizes: '300x300' }] : [],
       });
       session.playbackState = el.paused ? 'paused' : 'playing';
+      applyPosition();
+    };
+
+    // With a VOD behind the stream the broadcast is a real timeline: report
+    // its running length and where playback sits in it. Without one, clear
+    // the position so the widget presents a plain live stream.
+    const applyPosition = () => {
+      if (typeof session.setPositionState !== 'function') return;
+      try {
+        if (!rewindSource) {
+          session.setPositionState();
+          return;
+        }
+        const duration = Math.max(1, (Date.now() - rewindSource.startedAt) / 1000);
+        const position = mode.type === 'live'
+          ? duration
+          : Math.min(Math.max(0, el.currentTime), duration);
+        // Rate 0 at the live edge keeps the widget from running past the end
+        // between updates; rewound playback advances normally.
+        session.setPositionState({
+          duration,
+          position,
+          playbackRate: mode.type === 'live' || el.paused ? 0 : el.playbackRate || 1,
+        });
+      } catch {
+        // Some browsers reject a zero rate or clearing the state; the
+        // metadata above still applies.
+      }
     };
 
     const setHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
@@ -81,24 +165,40 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
     apply();
     setHandler('play', () => { el.play().catch(() => {}); });
     setHandler('pause', () => { el.pause(); });
-    // Live stream: no scrubbing or track skipping from the OS widget.
-    setHandler('seekbackward', null);
-    setHandler('seekforward', null);
-    setHandler('seekto', null);
+    // Scrubbing from the OS widget only makes sense when there is a VOD to
+    // seek into; a plain live stream exposes play/pause alone.
+    const currentPosition = () => (mode.type === 'live' && rewindSource
+      ? (Date.now() - rewindSource.startedAt) / 1000
+      : el.currentTime);
+    setHandler('seekto', rewindSource ? details => {
+      if (typeof details.seekTime === 'number') seekTo(details.seekTime);
+    } : null);
+    setHandler('seekbackward', rewindSource ? details => {
+      seekTo(currentPosition() - (details.seekOffset || 10));
+    } : null);
+    setHandler('seekforward', rewindSource ? details => {
+      seekTo(currentPosition() + (details.seekOffset || 10));
+    } : null);
     setHandler('previoustrack', null);
     setHandler('nexttrack', null);
 
-    const events = ['play', 'playing', 'pause', 'loadedmetadata', 'durationchange'] as const;
+    const events = ['play', 'playing', 'pause', 'loadedmetadata', 'durationchange', 'seeked'] as const;
     events.forEach(name => el.addEventListener(name, apply));
+    // The broadcast keeps growing, so refresh its length periodically.
+    const positionTimer = setInterval(applyPosition, 5000);
 
     return () => {
+      clearInterval(positionTimer);
       events.forEach(name => el.removeEventListener(name, apply));
       setHandler('play', null);
       setHandler('pause', null);
+      setHandler('seekto', null);
+      setHandler('seekbackward', null);
+      setHandler('seekforward', null);
       session.metadata = null;
       session.playbackState = 'none';
     };
-  }, [channel, streamTitle, gameName, artworkUrl]);
+  }, [channel, streamTitle, gameName, artworkUrl, rewindSource, mode, seekTo]);
 
   useEffect(() => {
     // Wait for platform detection before choosing playback engine
@@ -114,6 +214,31 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
       activeVideo = el;
 
       try {
+        const source = rewindSourceRef.current;
+        if (mode.type === 'rewind' && source && Hls.isSupported()) {
+          setLoading(true);
+          const vodUrl = await fetchVodPlaybackUrl(source.vodId);
+          if (cancelled) return;
+
+          // A broken rewind session drops back to live, not to the iframe.
+          const hls = initHlsPlayer(el, proxyUrl(vodUrl), () => {
+            if (!cancelled) setMode(LIVE_MODE);
+          }, { rewindPosition: mode.start });
+          hlsRef.current = hls;
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (cancelled) return;
+            setLoading(false);
+            setQualities(getQualityLevels(hls));
+            el.play().catch(() => {});
+          });
+
+          hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+            if (!cancelled) setCurrentQuality(data.level);
+          });
+          return;
+        }
+
         // Fetch playback token directly from Twitch GQL (client-side)
         // Server-side API route gets blocked by Twitch on cloud provider IPs
         const { m3u8Url } = await fetchPlaybackToken(channel);
@@ -127,7 +252,15 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
             if (!cancelled) onFallback();
           });
           hlsRef.current = hls;
-          detachPauseHandling = attachLivePauseHandling(hls, el);
+          detachPauseHandling = attachLivePauseHandling(hls, el, pausedMs => {
+            // With a VOD to fall back on, a real pause resumes where it left
+            // off instead of skipping ahead to live.
+            const rewind = rewindSourceRef.current;
+            if (!rewind || pausedMs < RESUME_IN_PLACE_AFTER_MS) return false;
+            const pausedAtSeconds = (Date.now() - pausedMs - rewind.startedAt) / 1000;
+            setMode({ type: 'rewind', start: Math.max(0, pausedAtSeconds - LIVE_PLAYBACK_DELAY_SECONDS) });
+            return true;
+          });
 
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             if (cancelled) return;
@@ -173,7 +306,7 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
         el.load();
       }
     };
-  }, [channel, preferNative, onFallback]);
+  }, [channel, preferNative, onFallback, mode]);
 
   return (
     <div className={className} data-player-root style={{ position: 'absolute', inset: 0 }}>
@@ -198,6 +331,12 @@ export default function NativeHlsPlayer({ channel, onFallback, className }: Nati
         qualityLevels={qualities}
         currentQuality={currentQuality}
         onQualityChange={handleQualityChange}
+        rewind={rewindSource ? {
+          startedAt: rewindSource.startedAt,
+          isLive: mode.type === 'live',
+          onSeek: seekTo,
+          onGoLive: goLive,
+        } : undefined}
       />
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">

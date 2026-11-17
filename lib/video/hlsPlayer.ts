@@ -15,17 +15,42 @@ const HLS_CONFIG: Partial<HlsConfig> = {
   maxMaxBufferLength: 30,
   liveSyncDurationCount: 3,
   liveMaxLatencyDurationCount: 6,
+  // Report an infinite duration for live so the OS Now Playing widget shows
+  // "LIVE" rather than a scrubber and an ever-growing track length.
+  liveDurationInfinity: true,
   enableWorker: true,
   progressive: true,
   loader: createAdFilterLoader(),
 };
 
+// A rewind session plays the broadcast's growing VOD playlist. hls.js sees it
+// as live, so the "too far behind, snap to the edge" guard must be off or it
+// would undo every seek, and it gets a deeper buffer since it is not chasing
+// the live edge.
+const REWIND_CONFIG: Partial<HlsConfig> = {
+  liveMaxLatencyDurationCount: Infinity,
+  // A rewound position is a real point on a timeline, so keep a duration.
+  liveDurationInfinity: false,
+  maxBufferLength: 30,
+  maxMaxBufferLength: 60,
+};
+
+export interface InitHlsOptions {
+  /** Start a rewind session at this many seconds into the broadcast. */
+  rewindPosition?: number;
+}
+
 export function initHlsPlayer(
   video: HTMLVideoElement,
   url: string,
   onFatal?: () => void,
+  options: InitHlsOptions = {},
 ): Hls {
-  const hls = new Hls(HLS_CONFIG);
+  const hls = new Hls(
+    options.rewindPosition === undefined
+      ? HLS_CONFIG
+      : { ...HLS_CONFIG, ...REWIND_CONFIG, startPosition: Math.max(0, options.rewindPosition) },
+  );
 
   let mediaErrorRecoveries = 0;
   let networkErrorRecoveries = 0;
@@ -78,13 +103,22 @@ export function initHlsPlayer(
 }
 
 /**
- * Live streams have no rewind buffer, so pausing must not leave hls.js polling
+ * The live playlist has no rewind buffer, so pausing must not leave hls.js polling
  * a playlist whose window slides past the paused position (that ends in fatal
  * errors and an iframe fallback). Stop loading while paused and rejoin at the
  * live edge on resume. Returns a cleanup function.
  */
-export function attachLivePauseHandling(hls: Hls, video: HTMLVideoElement): () => void {
+export function attachLivePauseHandling(
+  hls: Hls,
+  video: HTMLVideoElement,
+  /**
+   * Called on resume with how long playback was paused. Return true to take
+   * over (e.g. switch to a rewind session) instead of rejoining the live edge.
+   */
+  onResume?: (pausedMs: number) => boolean,
+): () => void {
   let stoppedForPause = false;
+  let pausedAt = 0;
 
   const seekToLive = () => {
     const live = hls.liveSyncPosition;
@@ -96,12 +130,14 @@ export function attachLivePauseHandling(hls: Hls, video: HTMLVideoElement): () =
   const onPause = () => {
     if (video.ended || video.seeking) return;
     stoppedForPause = true;
+    pausedAt = Date.now();
     hls.stopLoad();
   };
 
   const onPlay = () => {
     if (!stoppedForPause) return;
     stoppedForPause = false;
+    if (onResume?.(Date.now() - pausedAt)) return;
     // The playlist we hold is as old as the pause; refresh it, then jump.
     hls.once(Hls.Events.LEVEL_UPDATED, seekToLive);
     hls.startLoad(-1);

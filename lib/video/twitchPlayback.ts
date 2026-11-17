@@ -227,3 +227,86 @@ export async function fetchPlaybackToken(channel: string): Promise<PlaybackData>
 
   return { m3u8Url, token, signature };
 }
+
+
+export interface RewindSource {
+  /** Archive VOD Twitch is recording for the broadcast that is live now. */
+  vodId: string;
+  /** Broadcast start, epoch ms. VOD time 0 lines up with this moment. */
+  startedAt: number;
+}
+
+async function twitchGql(body: unknown): Promise<any> {
+  const headers: Record<string, string> = {
+    'Client-ID': TWITCH_PUBLIC_CLIENT_ID,
+    'Content-Type': 'text/plain; charset=UTF-8',
+  };
+  const deviceId = getOrCreateDeviceId();
+  if (deviceId) {
+    headers['Device-ID'] = deviceId;
+  }
+
+  const res = await fetch(TWITCH_GQL_URL, { method: 'POST', headers, body: JSON.stringify(body) });
+  if (!res.ok) {
+    throw new Error(`GQL request failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
+ * Find the in-progress VOD for a live channel, which is what makes rewinding
+ * possible. Resolves to null when the channel is offline or does not archive
+ * its broadcasts.
+ */
+export async function fetchRewindSource(channel: string): Promise<RewindSource | null> {
+  const json = await twitchGql({
+    query: 'query RewindSource($login: String!) { user(login: $login) { stream { createdAt archiveVideo { id } } } }',
+    variables: { login: channel.toLowerCase() },
+  });
+
+  const stream = json?.data?.user?.stream;
+  const vodId = stream?.archiveVideo?.id;
+  const startedAt = Date.parse(stream?.createdAt ?? '');
+  if (!vodId || Number.isNaN(startedAt)) {
+    return null;
+  }
+  return { vodId: String(vodId), startedAt };
+}
+
+export function buildVodPlaybackUrl(vodId: string, token: string, signature: string): string {
+  const params = new URLSearchParams({
+    sig: signature,
+    token,
+    allow_source: 'true',
+    player_backend: 'mediaplayer',
+    playlist_include_framerate: 'true',
+    p: String(Math.floor(Math.random() * 9_999_999)),
+  });
+  return `${TWITCH_USHER_BASE}/vod/${encodeURIComponent(vodId)}.m3u8?${params.toString()}`;
+}
+
+/**
+ * Master playlist URL for a VOD. Unlike live playlists, Twitch serves VOD
+ * playlists and segments without CORS headers, so callers must load this
+ * through /api/proxy.
+ */
+export async function fetchVodPlaybackUrl(vodId: string): Promise<string> {
+  const json = await twitchGql({
+    operationName: 'PlaybackAccessToken_Template',
+    query: PLAYBACK_ACCESS_TOKEN_QUERY,
+    variables: {
+      isLive: false,
+      login: '',
+      isVod: true,
+      vodID: vodId,
+      playerType: TWITCH_PLAYER_TYPE,
+      platform: TWITCH_PLATFORM,
+    },
+  });
+
+  const accessToken = json?.data?.videoPlaybackAccessToken;
+  if (!accessToken?.value || !accessToken?.signature) {
+    throw new Error('VOD token unavailable');
+  }
+  return buildVodPlaybackUrl(vodId, accessToken.value, accessToken.signature);
+}

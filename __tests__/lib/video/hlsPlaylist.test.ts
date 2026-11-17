@@ -293,6 +293,17 @@ describe('hlsPlaylist', () => {
       expect(rewritePlaylistUrls(input)).toBe(input);
     });
 
+    it('rewrites URI attributes on init-segment tags (fMP4 VODs)', () => {
+      const input = '#EXTM3U\n#EXT-X-MAP:URI="init-0.mp4"\n#EXTINF:10.000,\n0.mp4';
+      const out = rewritePlaylistUrls(input, 'https://d1.cloudfront.net/abc_chan_1/chunked/index-dvr.m3u8');
+      expect(out).toContain(`#EXT-X-MAP:URI="/api/proxy?url=${encodeURIComponent('https://d1.cloudfront.net/abc_chan_1/chunked/init-0.mp4')}"`);
+      expect(out).toContain(`/api/proxy?url=${encodeURIComponent('https://d1.cloudfront.net/abc_chan_1/chunked/0.mp4')}`);
+    });
+
+    it('does not mistake a channel login in a VOD path for an ad', () => {
+      expect(isLikelyAdResourceUrl('https://d1.cloudfront.net/abc_ad_guy_123/chunked/12.ts')).toBe(false);
+    });
+
     it('preserves tag and blank lines', () => {
       const input = '#EXTM3U\n#EXT-X-VERSION:6\n\n#EXTINF:2.0,\n1.ts\n';
       const out = rewritePlaylistUrls(input, 'https://host.example/a/b.m3u8');

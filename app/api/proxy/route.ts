@@ -177,8 +177,8 @@ export async function GET(request: NextRequest) {
       });
     } else {
       // Binary content (video segments, etc.) — pass through as-is
-      const content = await response.arrayBuffer();
-      return new NextResponse(content, {
+      // Streamed, not buffered: rewind playback pulls multi-megabyte segments.
+      return new NextResponse(response.body, {
         status: 200,
         headers: {
           'Content-Type': contentType || 'application/octet-stream',

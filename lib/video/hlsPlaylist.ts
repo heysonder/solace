@@ -28,6 +28,8 @@ const CUE_OUT_INLINE_DURATION_PATTERN = /^#EXT-X-CUE-OUT:([0-9.]+)/i;
 const LIVE_EXTINF_PATTERN = /^#EXTINF:[0-9.]+,live\b/i;
 const AD_SEGMENT_HINT_PATTERN = /(?:^|[,/_.?&=-])(?:ad|ads|advert|advertisement|commercial|stitched-ad|stitched_ad|preroll|pre-roll|midroll|mid-roll)(?:$|[,/_.?&=-])/i;
 const MAX_READABLE_PATH_PART_LENGTH = 64;
+const URI_TAG_PATTERN = /^#EXT-X-(?:MAP|MEDIA|I-FRAME-STREAM-INF):/;
+const URI_ATTRIBUTE_PATTERN = /URI="([^"]+)"/;
 const AD_RESOURCE_HOSTS = [
   'ads.twitch.tv',
   'twitchads.com',
@@ -102,12 +104,12 @@ export function isLikelyAdResourceUrl(value: string): boolean {
       return true;
     }
     // Twitch segment URLs carry long opaque base64url tokens that contain
-    // "-ad_"-style substrings by chance. Only readable path parts are hints.
-    const readablePath = url.pathname
-      .split('/')
-      .filter(part => part.length <= MAX_READABLE_PATH_PART_LENGTH)
-      .join('/');
-    return AD_SEGMENT_HINT_PATTERN.test(readablePath);
+    // "-ad_"-style substrings by chance, so they cannot be used as hints.
+    // Directory names are no better: VOD paths embed the channel login.
+    // So only a short, readable file name counts as a hint.
+    const fileName = url.pathname.split('/').pop() || '';
+    return fileName.length <= MAX_READABLE_PATH_PART_LENGTH
+      && AD_SEGMENT_HINT_PATTERN.test(`/${fileName}`);
   } catch {
     return AD_SEGMENT_HINT_PATTERN.test(trimmed);
   }
@@ -323,6 +325,22 @@ export function rewritePlaylistUrls(
 
   for (const line of lines) {
     const trimmed = line.trim();
+
+    // Tags that point at a resource (fMP4 init segments, alternate renditions)
+    // carry it in a URI attribute, which needs the same treatment as URL lines.
+    if (URI_TAG_PATTERN.test(trimmed)) {
+      out.push(line.replace(URI_ATTRIBUTE_PATTERN, (match, uri: string) => {
+        try {
+          const resolved = /^https?:\/\//i.test(uri)
+            ? uri
+            : baseUrl ? new URL(uri, baseUrl).toString() : null;
+          return resolved ? `URI="${wrap(resolved)}"` : match;
+        } catch {
+          return match;
+        }
+      }));
+      continue;
+    }
 
     // Tags and blanks pass through
     if (!trimmed || trimmed.startsWith('#')) {
